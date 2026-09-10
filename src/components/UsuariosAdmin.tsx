@@ -30,6 +30,14 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
   const [errorBorrado, setErrorBorrado] = useState<string | null>(null);
   const [borrando, setBorrando] = useState<string | null>(null);
 
+  const [editando, setEditando] = useState<Profile | null>(null);
+  const [nombreEdit, setNombreEdit] = useState("");
+  const [usuarioEdit, setUsuarioEdit] = useState("");
+  const [passwordEdit, setPasswordEdit] = useState("");
+  const [rolEdit, setRolEdit] = useState<Rol>("tractorista");
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+
   async function recargar() {
     const supabase = createClient();
     const { data } = await supabase.from("profiles").select("*").order("nombre");
@@ -77,6 +85,44 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
     recargar();
   }
 
+  function abrirEdicion(u: Profile) {
+    setErrorEdicion(null);
+    setEditando(u);
+    setNombreEdit(u.nombre);
+    setUsuarioEdit("");
+    setPasswordEdit("");
+    setRolEdit(u.rol);
+  }
+
+  async function guardarEdicion(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editando || !nombreEdit.trim()) return;
+    setGuardandoEdicion(true);
+    setErrorEdicion(null);
+
+    const res = await fetch("/api/admin/usuarios", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: editando.id,
+        nombre: nombreEdit.trim(),
+        rol: rolEdit,
+        ...(usuarioEdit.trim() ? { email: usuarioEdit.trim() } : {}),
+        ...(passwordEdit ? { password: passwordEdit } : {}),
+      }),
+    });
+    const data = await res.json();
+    setGuardandoEdicion(false);
+
+    if (!res.ok) {
+      setErrorEdicion(data.error ?? "No se pudo guardar");
+      return;
+    }
+
+    setEditando(null);
+    recargar();
+  }
+
   async function borrar(id: string) {
     setErrorBorrado(null);
     setBorrando(id);
@@ -113,13 +159,10 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           type="text"
-          placeholder="Nombre de usuario (para loguearse)"
+          placeholder="Usuario (nombre de usuario o email, opcional este último)"
           required
           className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         />
-        <p className="-mt-2 text-xs text-stone-400">
-          No hace falta que sea un email real, por ejemplo alcanza con &quot;tomi&quot;.
-        </p>
         <input
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -166,7 +209,13 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
                     <span className="ml-2 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{ETIQUETA_ROL[u.rol]}</span>
                   </div>
                   {u.id !== miPropioId && confirmandoBorrado !== u.id && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        onClick={() => abrirEdicion(u)}
+                        className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600 hover:bg-stone-200"
+                      >
+                        Editar
+                      </button>
                       <select
                         value={u.rol}
                         onChange={(e) => cambiar(u.id, { rol: e.target.value as Rol })}
@@ -228,6 +277,80 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
         Desactivar bloquea el acceso sin borrar el historial. Borrar es permanente y sólo se puede
         hacer si ese usuario todavía no cargó ninguna entrega.
       </p>
+
+      {editando && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
+          <form
+            onSubmit={guardarEdicion}
+            className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 shadow-xl"
+          >
+            <h2 className="text-lg font-bold text-stone-900">Editar usuario</h2>
+
+            <div>
+              <label className="block text-sm font-medium text-stone-700">Nombre</label>
+              <input
+                value={nombreEdit}
+                onChange={(e) => setNombreEdit(e.target.value)}
+                required
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-stone-700">Rol</label>
+              <select
+                value={rolEdit}
+                onChange={(e) => setRolEdit(e.target.value as Rol)}
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+              >
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-stone-700">Cambiar usuario (login)</label>
+              <input
+                value={usuarioEdit}
+                onChange={(e) => setUsuarioEdit(e.target.value)}
+                placeholder="Dejar en blanco para no cambiarlo"
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-stone-700">Nueva contraseña</label>
+              <input
+                value={passwordEdit}
+                onChange={(e) => setPasswordEdit(e.target.value)}
+                placeholder="Dejar en blanco para no cambiarla"
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+              />
+            </div>
+
+            {errorEdicion && <p className="text-sm text-red-600">{errorEdicion}</p>}
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setEditando(null)}
+                disabled={guardandoEdicion}
+                className="flex-1 rounded-lg border border-stone-300 px-4 py-2.5 font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={guardandoEdicion}
+                className="flex-1 rounded-lg bg-brand-700 px-4 py-2.5 font-medium text-white hover:bg-brand-800 disabled:opacity-60"
+              >
+                {guardandoEdicion ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

@@ -66,24 +66,46 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: chequeo.status });
   }
 
-  const { id, activo, rol } = await request.json();
+  const { id, activo, rol, nombre, email, password } = await request.json();
   if (!id) {
     return NextResponse.json({ error: "Falta id" }, { status: 400 });
+  }
+  if (password && password.length < 6) {
+    return NextResponse.json({ error: "La contraseña debe tener al menos 6 caracteres" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+
+  // Cambio de usuario (login) y/o contraseña: se maneja aparte porque vive en auth, no en profiles.
+  if (email || password) {
+    const datosAuth: Record<string, unknown> = {};
+    if (email) datosAuth.email = normalizarUsuarioAEmail(email);
+    if (password) datosAuth.password = password;
+
+    const { error: errorAuth } = await admin.auth.admin.updateUserById(id, datosAuth);
+    if (errorAuth) {
+      const yaExiste = errorAuth.message?.toLowerCase().includes("already");
+      return NextResponse.json(
+        { error: yaExiste ? "Ya existe un usuario con ese nombre." : errorAuth.message },
+        { status: 400 },
+      );
+    }
   }
 
   const cambios: Record<string, unknown> = {};
   if (typeof activo === "boolean") cambios.activo = activo;
   if (ROLES_VALIDOS.includes(rol)) cambios.rol = rol;
+  if (typeof nombre === "string" && nombre.trim()) cambios.nombre = nombre.trim();
 
-  if (Object.keys(cambios).length === 0) {
+  if (Object.keys(cambios).length === 0 && !email && !password) {
     return NextResponse.json({ error: "Nada para actualizar" }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.from("profiles").update(cambios).eq("id", id);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (Object.keys(cambios).length > 0) {
+    const { error } = await admin.from("profiles").update(cambios).eq("id", id);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
   }
 
   return NextResponse.json({ ok: true });

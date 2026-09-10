@@ -124,12 +124,6 @@ export default function CatalogoAdmin({ tabla, titulo, soloLectura = false }: Pr
     <div className="mx-auto max-w-lg">
       <h1 className="mb-4 text-xl font-bold text-stone-900">{titulo}</h1>
 
-      {soloLectura && (
-        <p className="mb-4 rounded-lg bg-stone-100 p-3 text-sm text-stone-600">
-          Modo consulta: podés ver la lista, pero no agregar, editar ni borrar.
-        </p>
-      )}
-
       {!soloLectura && (
         <form onSubmit={agregar} className="mb-4 flex gap-2">
           <input
