@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
 import type { Alimento, Lote, Profile } from "@/lib/types";
 
@@ -48,6 +49,8 @@ export default function GrillaTable() {
   const [editando, setEditando] = useState<EntregaEditable | null>(null);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+
+  const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const supabase = createClient();
@@ -104,6 +107,7 @@ export default function GrillaTable() {
         cargado_por_nombre: e.profiles?.nombre ?? "—",
       })),
     );
+    setSeleccionados(new Set());
     setCargando(false);
   }, [filtroLote, filtroAlimento, filtroUsuario, filtroDesde, filtroHasta]);
 
@@ -165,6 +169,47 @@ export default function GrillaTable() {
     setConfirmandoBorrado(null);
     setMenuAbierto(null);
     cargarEntregas();
+  }
+
+  function toggleSeleccionado(id: string) {
+    setSeleccionados((actual) => {
+      const nuevo = new Set(actual);
+      if (nuevo.has(id)) nuevo.delete(id);
+      else nuevo.add(id);
+      return nuevo;
+    });
+  }
+
+  function toggleSeleccionarTodo() {
+    setSeleccionados((actual) =>
+      actual.size === filas.length ? new Set() : new Set(filas.map((f) => f.id)),
+    );
+  }
+
+  function exportarExcel() {
+    const filasAExportar = filas.filter((f) => seleccionados.has(f.id));
+    if (filasAExportar.length === 0) return;
+
+    const datos = filasAExportar.map((f) => ({
+      "Fecha entrega": f.fecha_entrega,
+      "Alimento": f.alimento_nombre,
+      "Lote destino": f.lote_nombre,
+      "Cantidad": f.cantidad,
+      "Unidad": f.unidad,
+      "Cargado por": f.cargado_por_nombre,
+      "Observaciones": f.observaciones ?? "",
+      "Cargado el": new Date(f.created_at).toLocaleString("es-AR"),
+    }));
+
+    const hoja = XLSX.utils.json_to_sheet(datos);
+    hoja["!cols"] = [
+      { wch: 13 }, { wch: 20 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 30 }, { wch: 18 },
+    ];
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, "Entregas");
+
+    const hoy = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(libro, `entregas-${hoy}.xlsx`);
   }
 
   return (
@@ -232,6 +277,14 @@ export default function GrillaTable() {
             Limpiar filtros
           </button>
         )}
+
+        <button
+          onClick={exportarExcel}
+          disabled={seleccionados.size === 0}
+          className="ml-auto rounded-lg bg-brand-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400"
+        >
+          Exportar a Excel{seleccionados.size > 0 ? ` (${seleccionados.size})` : ""}
+        </button>
       </div>
 
       {error && <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{error}</p>}
@@ -240,6 +293,15 @@ export default function GrillaTable() {
         <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
+              <th className="w-10 px-4 py-2.5">
+                <input
+                  type="checkbox"
+                  checked={filas.length > 0 && seleccionados.size === filas.length}
+                  onChange={toggleSeleccionarTodo}
+                  aria-label="Seleccionar todas"
+                  className="h-4 w-4 rounded border-stone-300 accent-brand-700"
+                />
+              </th>
               <th className="px-4 py-2.5 font-medium">Fecha entrega</th>
               <th className="px-4 py-2.5 font-medium">Alimento</th>
               <th className="px-4 py-2.5 font-medium">Lote destino</th>
@@ -253,15 +315,29 @@ export default function GrillaTable() {
           <tbody>
             {cargando ? (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-stone-400">Cargando...</td>
+                <td colSpan={9} className="px-4 py-6 text-center text-stone-400">Cargando...</td>
               </tr>
             ) : filas.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-stone-400">No hay entregas registradas.</td>
+                <td colSpan={9} className="px-4 py-6 text-center text-stone-400">No hay entregas registradas.</td>
               </tr>
             ) : (
               filas.map((f) => (
-                <tr key={f.id} className="border-b border-stone-100 last:border-0 hover:bg-stone-50">
+                <tr
+                  key={f.id}
+                  className={`border-b border-stone-100 last:border-0 hover:bg-stone-50 ${
+                    seleccionados.has(f.id) ? "bg-brand-50" : ""
+                  }`}
+                >
+                  <td className="px-4 py-2.5">
+                    <input
+                      type="checkbox"
+                      checked={seleccionados.has(f.id)}
+                      onChange={() => toggleSeleccionado(f.id)}
+                      aria-label={`Seleccionar entrega del ${f.fecha_entrega}`}
+                      className="h-4 w-4 rounded border-stone-300 accent-brand-700"
+                    />
+                  </td>
                   <td className="px-4 py-2.5">{f.fecha_entrega}</td>
                   <td className="px-4 py-2.5">{f.alimento_nombre}</td>
                   <td className="px-4 py-2.5">{f.lote_nombre}</td>
@@ -337,7 +413,7 @@ export default function GrillaTable() {
           {filas.length > 0 && (
             <tfoot>
               <tr className="border-t border-stone-200 bg-stone-50 font-medium">
-                <td className="px-4 py-2.5" colSpan={3}>Total ({filas.length} entregas)</td>
+                <td className="px-4 py-2.5" colSpan={4}>Total ({filas.length} entregas)</td>
                 <td className="px-4 py-2.5">{totalCantidad.toFixed(2)}</td>
                 <td className="px-4 py-2.5" colSpan={4}></td>
               </tr>
