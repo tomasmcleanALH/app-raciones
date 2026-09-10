@@ -18,13 +18,13 @@ export const metadata: Metadata = {
   description: "Registro de entregas de alimento a las recrías",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/logo-las-helenas.jpg",
+    apple: "/logo-las-helenas.jpg",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#166534",
+  themeColor: "#641f38",
   width: "device-width",
   initialScale: 1,
 };

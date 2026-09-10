@@ -3,6 +3,17 @@
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Paleta de marca (Agropecuaria Las Helenas): vino/bordó del logo */
+  --color-brand-50: #fbf0f2;
+  --color-brand-100: #f5dee3;
+  --color-brand-200: #e9bac5;
+  --color-brand-300: #d68fa0;
+  --color-brand-500: #a13a5a;
+  --color-brand-600: #7f2947;
+  --color-brand-700: #641f38;
+  --color-brand-800: #4c1729;
+  --color-brand-900: #350f1c;
 }
 
 body {

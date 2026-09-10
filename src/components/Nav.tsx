@@ -31,7 +31,10 @@ export default function Nav({ nombre, rol }: { nombre: string; rol: Rol }) {
   return (
     <header className="border-b border-stone-200 bg-white">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
-        <span className="font-bold text-emerald-800">Operaciones</span>
+        <span className="flex items-center gap-2 font-bold text-brand-800">
+          <img src="/logo-las-helenas.jpg" alt="" className="h-7 w-7 rounded-md object-cover" />
+          Operaciones
+        </span>
 
         <nav className="flex flex-1 flex-wrap gap-1">
           {links.map((link) => (
@@ -40,7 +43,7 @@ export default function Nav({ nombre, rol }: { nombre: string; rol: Rol }) {
               href={link.href}
               className={`rounded-md px-3 py-1.5 text-sm font-medium ${
                 pathname === link.href
-                  ? "bg-emerald-100 text-emerald-800"
+                  ? "bg-brand-100 text-brand-800"
                   : "text-stone-600 hover:bg-stone-100"
               }`}
             >

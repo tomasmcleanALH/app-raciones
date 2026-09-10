@@ -58,9 +58,9 @@ export default function CatalogoAdmin({ tabla, titulo }: { tabla: "lotes" | "ali
           value={nombreNuevo}
           onChange={(e) => setNombreNuevo(e.target.value)}
           placeholder="Nombre nuevo..."
-          className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         />
-        <button type="submit" className="rounded-lg bg-emerald-700 px-4 py-2 font-medium text-white hover:bg-emerald-800">
+        <button type="submit" className="rounded-lg bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-800">
           Agregar
         </button>
       </form>

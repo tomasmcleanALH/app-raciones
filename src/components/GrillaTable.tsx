@@ -361,7 +361,7 @@ export default function GrillaTable() {
                 required
                 value={editando.fecha_entrega}
                 onChange={(e) => setEditando({ ...editando, fecha_entrega: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
               />
             </div>
 
@@ -371,7 +371,7 @@ export default function GrillaTable() {
                 required
                 value={editando.alimento_id}
                 onChange={(e) => setEditando({ ...editando, alimento_id: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
               >
                 {alimentos.map((a) => (
                   <option key={a.id} value={a.id}>{a.nombre}</option>
@@ -385,7 +385,7 @@ export default function GrillaTable() {
                 required
                 value={editando.lote_id}
                 onChange={(e) => setEditando({ ...editando, lote_id: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
               >
                 {lotes.map((l) => (
                   <option key={l.id} value={l.id}>{l.nombre}</option>
@@ -404,7 +404,7 @@ export default function GrillaTable() {
                   required
                   value={editando.cantidad}
                   onChange={(e) => setEditando({ ...editando, cantidad: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
                 />
               </div>
               <div className="w-28">
@@ -412,7 +412,7 @@ export default function GrillaTable() {
                 <select
                   value={editando.unidad}
                   onChange={(e) => setEditando({ ...editando, unidad: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
                 >
                   <option value="kg">kg</option>
                   <option value="tn">tn</option>
@@ -428,7 +428,7 @@ export default function GrillaTable() {
                 value={editando.observaciones}
                 onChange={(e) => setEditando({ ...editando, observaciones: e.target.value })}
                 rows={2}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
               />
             </div>
 
@@ -446,7 +446,7 @@ export default function GrillaTable() {
               <button
                 type="submit"
                 disabled={guardandoEdicion}
-                className="flex-1 rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+                className="flex-1 rounded-lg bg-brand-700 px-4 py-2.5 font-medium text-white hover:bg-brand-800 disabled:opacity-60"
               >
                 {guardandoEdicion ? "Guardando..." : "Guardar cambios"}
               </button>

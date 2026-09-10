@@ -160,7 +160,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
             type="button"
             onClick={confirmarEnvio}
             disabled={enviando}
-            className="flex-1 rounded-lg bg-emerald-700 px-4 py-3 text-base font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+            className="flex-1 rounded-lg bg-brand-700 px-4 py-3 text-base font-medium text-white hover:bg-brand-800 disabled:opacity-60"
           >
             {enviando ? "Enviando..." : "Confirmar y enviar"}
           </button>
@@ -178,7 +178,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
           required
           value={fecha}
           onChange={(e) => setFecha(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         />
       </div>
 
@@ -188,7 +188,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
           required
           value={alimentoId}
           onChange={(e) => setAlimentoId(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         >
           <option value="" disabled>Elegir...</option>
           {alimentos.map((a) => (
@@ -203,7 +203,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
           required
           value={loteId}
           onChange={(e) => setLoteId(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         >
           <option value="" disabled>Elegir...</option>
           {lotes.map((l) => (
@@ -223,7 +223,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
             required
             value={cantidad}
             onChange={(e) => setCantidad(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
           />
         </div>
         <div className="w-28">
@@ -231,7 +231,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
           <select
             value={unidad}
             onChange={(e) => setUnidad(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
           >
             <option value="kg">kg</option>
             <option value="tn">tn</option>
@@ -247,7 +247,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
           value={observaciones}
           onChange={(e) => setObservaciones(e.target.value)}
           rows={2}
-          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         />
       </div>
 
@@ -267,7 +267,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
 
       <button
         type="submit"
-        className="w-full rounded-lg bg-emerald-700 px-4 py-3 text-base font-medium text-white hover:bg-emerald-800"
+        className="w-full rounded-lg bg-brand-700 px-4 py-3 text-base font-medium text-white hover:bg-brand-800"
       >
         Revisar entrega
       </button>

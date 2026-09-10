@@ -104,7 +104,7 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
           onChange={(e) => setNombre(e.target.value)}
           placeholder="Nombre"
           required
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         />
         <input
           value={email}
@@ -112,7 +112,7 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
           type="email"
           placeholder="Usuario (email)"
           required
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         />
         <input
           value={password}
@@ -121,12 +121,12 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
           placeholder="Contraseña (mínimo 6 caracteres)"
           required
           minLength={6}
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         />
         <select
           value={rol}
           onChange={(e) => setRol(e.target.value as "tractorista" | "encargado")}
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
+          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         >
           <option value="tractorista">{ETIQUETA_ROL.tractorista}</option>
           <option value="encargado">{ETIQUETA_ROL.encargado}</option>
@@ -138,7 +138,7 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
         <button
           type="submit"
           disabled={enviando}
-          className="w-full rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+          className="w-full rounded-lg bg-brand-700 px-4 py-2.5 font-medium text-white hover:bg-brand-800 disabled:opacity-60"
         >
           {enviando ? "Creando..." : "Crear usuario"}
         </button>
