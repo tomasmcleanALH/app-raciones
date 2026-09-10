@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Profile } from "@/lib/types";
+import type { Profile, Rol } from "@/lib/types";
+
+// Nombres internos ("tractorista" / "encargado") sin cambios en el código y la base;
+// esto sólo traduce lo que se muestra en pantalla.
+const ETIQUETA_ROL: Record<Rol, string> = {
+  tractorista: "Usuario",
+  encargado: "Administrador",
+};
 
 export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
   const [usuarios, setUsuarios] = useState<Profile[]>([]);
@@ -121,8 +128,8 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
           onChange={(e) => setRol(e.target.value as "tractorista" | "encargado")}
           className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-600"
         >
-          <option value="tractorista">Tractorista</option>
-          <option value="encargado">Encargado</option>
+          <option value="tractorista">{ETIQUETA_ROL.tractorista}</option>
+          <option value="encargado">{ETIQUETA_ROL.encargado}</option>
         </select>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -149,7 +156,7 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className={u.activo ? "" : "text-stone-400 line-through"}>{u.nombre}</span>
-                    <span className="ml-2 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{u.rol}</span>
+                    <span className="ml-2 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{ETIQUETA_ROL[u.rol]}</span>
                   </div>
                   {u.id !== miPropioId && confirmandoBorrado !== u.id && (
                     <div className="flex gap-2">
@@ -157,7 +164,7 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
                         onClick={() => cambiar(u.id, { rol: u.rol === "encargado" ? "tractorista" : "encargado" })}
                         className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600 hover:bg-stone-200"
                       >
-                        Hacer {u.rol === "encargado" ? "tractorista" : "encargado"}
+                        Hacer {u.rol === "encargado" ? ETIQUETA_ROL.tractorista : ETIQUETA_ROL.encargado}
                       </button>
                       <button
                         onClick={() => cambiar(u.id, { activo: !u.activo })}

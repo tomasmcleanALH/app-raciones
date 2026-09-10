@@ -104,7 +104,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
   if (lotes.length === 0 || alimentos.length === 0) {
     return (
       <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
-        Todavía no hay lotes o tipos de alimento cargados. Pedile al encargado que los cree en
+        Todavía no hay lotes o tipos de alimento cargados. Pedile al administrador que los cree en
         Administración antes de registrar entregas.
       </p>
     );

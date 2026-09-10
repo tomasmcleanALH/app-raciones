@@ -197,7 +197,7 @@ export default function GrillaTable() {
           onChange={(e) => setFiltroUsuario(e.target.value)}
           className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
         >
-          <option value="">Todos los tractoristas</option>
+          <option value="">Todos los usuarios</option>
           {tractoristas.map((t) => (
             <option key={t.id} value={t.id}>{t.nombre}</option>
           ))}

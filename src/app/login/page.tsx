@@ -18,7 +18,7 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(
-    searchParams.get("desactivado") ? "Tu usuario está desactivado. Hablá con el encargado." : null,
+    searchParams.get("desactivado") ? "Tu usuario está desactivado. Hablá con el administrador." : null,
   );
   const [cargando, setCargando] = useState(false);
 
@@ -96,7 +96,7 @@ function LoginForm() {
         </form>
 
         <p className="mt-4 text-center text-xs text-stone-400">
-          ¿No tenés cuenta? Pedile al encargado que te la cree.
+          ¿No tenés cuenta? Pedile al administrador que te la cree.
         </p>
       </div>
     </div>
