@@ -213,72 +213,127 @@ export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: bool
     XLSX.writeFile(libro, `entregas-${hoy}.xlsx`);
   }
 
+  const hayFiltrosActivos = !!(filtroLote || filtroAlimento || filtroUsuario || filtroDesde || filtroHasta);
+
+  const controlesFiltro = (
+    <>
+      <select
+        value={filtroLote}
+        onChange={(e) => setFiltroLote(e.target.value)}
+        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+      >
+        <option value="">Todos los lotes</option>
+        {lotes.map((l) => (
+          <option key={l.id} value={l.id}>{l.nombre}</option>
+        ))}
+      </select>
+
+      <select
+        value={filtroAlimento}
+        onChange={(e) => setFiltroAlimento(e.target.value)}
+        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+      >
+        <option value="">Todos los alimentos</option>
+        {alimentos.map((a) => (
+          <option key={a.id} value={a.id}>{a.nombre}</option>
+        ))}
+      </select>
+
+      <select
+        value={filtroUsuario}
+        onChange={(e) => setFiltroUsuario(e.target.value)}
+        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+      >
+        <option value="">Todos los usuarios</option>
+        {tractoristas.map((t) => (
+          <option key={t.id} value={t.id}>{t.nombre}</option>
+        ))}
+      </select>
+
+      <input
+        type="date"
+        value={filtroDesde}
+        onChange={(e) => setFiltroDesde(e.target.value)}
+        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+        aria-label="Desde"
+      />
+      <input
+        type="date"
+        value={filtroHasta}
+        onChange={(e) => setFiltroHasta(e.target.value)}
+        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+        aria-label="Hasta"
+      />
+
+      {hayFiltrosActivos && (
+        <button
+          onClick={() => {
+            setFiltroLote("");
+            setFiltroAlimento("");
+            setFiltroUsuario("");
+            setFiltroDesde("");
+            setFiltroHasta("");
+          }}
+          className="rounded-lg px-3 py-1.5 text-sm text-stone-500 hover:bg-stone-100"
+        >
+          Limpiar filtros
+        </button>
+      )}
+    </>
+  );
+
+  const menuAcciones = (f: FilaGrilla) => (
+    <>
+      <button
+        className="fixed inset-0 z-10 cursor-default"
+        onClick={() => setMenuAbierto(null)}
+        aria-label="Cerrar menú"
+      />
+      <div className="absolute right-0 top-full z-20 w-40 rounded-lg bg-white py-1 text-left shadow-lg ring-1 ring-stone-200">
+        {confirmandoBorrado === f.id ? (
+          <div className="px-3 py-2">
+            <p className="mb-2 text-xs text-stone-600">¿Borrar esta entrega?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmandoBorrado(null)}
+                className="flex-1 rounded bg-stone-100 px-2 py-1 text-xs hover:bg-stone-200"
+              >
+                No
+              </button>
+              <button
+                onClick={() => borrarEntrega(f.id)}
+                disabled={borrando}
+                className="flex-1 rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-800 disabled:opacity-60"
+              >
+                {borrando ? "..." : "Sí"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => abrirEdicion(f)}
+              className="block w-full px-3 py-2 text-left text-sm text-stone-700 hover:bg-stone-50"
+            >
+              Editar
+            </button>
+            <button
+              onClick={() => setConfirmandoBorrado(f.id)}
+              className="block w-full px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+            >
+              Borrar
+            </button>
+          </>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div>
-      <div className="mb-4 flex flex-wrap gap-2">
-        <select
-          value={filtroLote}
-          onChange={(e) => setFiltroLote(e.target.value)}
-          className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
-        >
-          <option value="">Todos los lotes</option>
-          {lotes.map((l) => (
-            <option key={l.id} value={l.id}>{l.nombre}</option>
-          ))}
-        </select>
-
-        <select
-          value={filtroAlimento}
-          onChange={(e) => setFiltroAlimento(e.target.value)}
-          className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
-        >
-          <option value="">Todos los alimentos</option>
-          {alimentos.map((a) => (
-            <option key={a.id} value={a.id}>{a.nombre}</option>
-          ))}
-        </select>
-
-        <select
-          value={filtroUsuario}
-          onChange={(e) => setFiltroUsuario(e.target.value)}
-          className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
-        >
-          <option value="">Todos los usuarios</option>
-          {tractoristas.map((t) => (
-            <option key={t.id} value={t.id}>{t.nombre}</option>
-          ))}
-        </select>
-
-        <input
-          type="date"
-          value={filtroDesde}
-          onChange={(e) => setFiltroDesde(e.target.value)}
-          className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
-          aria-label="Desde"
-        />
-        <input
-          type="date"
-          value={filtroHasta}
-          onChange={(e) => setFiltroHasta(e.target.value)}
-          className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
-          aria-label="Hasta"
-        />
-
-        {(filtroLote || filtroAlimento || filtroUsuario || filtroDesde || filtroHasta) && (
-          <button
-            onClick={() => {
-              setFiltroLote("");
-              setFiltroAlimento("");
-              setFiltroUsuario("");
-              setFiltroDesde("");
-              setFiltroHasta("");
-            }}
-            className="rounded-lg px-3 py-1.5 text-sm text-stone-500 hover:bg-stone-100"
-          >
-            Limpiar filtros
-          </button>
-        )}
-
+      {/* Filtros — escritorio: barra fija, igual que siempre */}
+      <div className="mb-4 hidden flex-wrap gap-2 md:flex">
+        {controlesFiltro}
         <button
           onClick={exportarExcel}
           disabled={seleccionados.size === 0}
@@ -288,9 +343,105 @@ export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: bool
         </button>
       </div>
 
+      {/* Filtros — celular: acordeón desplegable */}
+      <details className="mb-4 rounded-xl bg-white shadow-sm ring-1 ring-stone-200 md:hidden">
+        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-stone-700">
+          <span className="inline-flex items-center gap-1.5">
+            Filtros de búsqueda
+            {hayFiltrosActivos && <span className="h-1.5 w-1.5 rounded-full bg-brand-700" />}
+          </span>
+        </summary>
+        <div className="flex flex-col gap-2 border-t border-stone-100 p-3">{controlesFiltro}</div>
+      </details>
+      <button
+        onClick={exportarExcel}
+        disabled={seleccionados.size === 0}
+        className="mb-4 w-full rounded-lg bg-brand-700 px-3 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 md:hidden"
+      >
+        Exportar a Excel{seleccionados.size > 0 ? ` (${seleccionados.size})` : ""}
+      </button>
+
       {error && <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{error}</p>}
 
-      <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-stone-200">
+      {/* Celular: tarjetas */}
+      <div className="space-y-3 md:hidden">
+        {cargando ? (
+          <p className="rounded-xl bg-white p-6 text-center text-sm text-stone-400 shadow-sm ring-1 ring-stone-200">Cargando...</p>
+        ) : filas.length === 0 ? (
+          <p className="rounded-xl bg-white p-6 text-center text-sm text-stone-400 shadow-sm ring-1 ring-stone-200">No hay entregas registradas.</p>
+        ) : (
+          <>
+            <label className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm text-stone-600 shadow-sm ring-1 ring-stone-200">
+              <input
+                type="checkbox"
+                checked={filas.length > 0 && seleccionados.size === filas.length}
+                onChange={toggleSeleccionarTodo}
+                className="h-4 w-4 rounded border-stone-300 accent-brand-700"
+              />
+              Seleccionar todas
+            </label>
+
+            {filas.map((f) => (
+              <div
+                key={f.id}
+                className={`relative rounded-xl p-4 text-sm shadow-sm ring-1 ${
+                  seleccionados.has(f.id) ? "bg-brand-50 ring-brand-200" : "bg-white ring-stone-200"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <label className="flex items-center gap-2 font-semibold text-stone-900">
+                    <input
+                      type="checkbox"
+                      checked={seleccionados.has(f.id)}
+                      onChange={() => toggleSeleccionado(f.id)}
+                      aria-label={`Seleccionar entrega del ${f.fecha_entrega}`}
+                      className="h-4 w-4 rounded border-stone-300 accent-brand-700"
+                    />
+                    {f.fecha_entrega}
+                  </label>
+
+                  {puedeEditar && (
+                    <button
+                      onClick={() => {
+                        setConfirmandoBorrado(null);
+                        setMenuAbierto(menuAbierto === f.id ? null : f.id);
+                      }}
+                      className="-mt-1 -mr-1 rounded px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                      aria-label="Más acciones"
+                    >
+                      ⋮
+                    </button>
+                  )}
+                  {puedeEditar && menuAbierto === f.id && menuAcciones(f)}
+                </div>
+
+                <div className="mt-2 space-y-1 pl-6 text-stone-700">
+                  <p><span className="text-stone-500">Alimento:</span> {f.alimento_nombre}</p>
+                  <p>
+                    <span className="text-stone-500">Lote destino:</span> {f.lote_nombre}
+                    <span className="mx-1.5 text-stone-300">|</span>
+                    <span className="text-stone-500">Cantidad:</span> {f.cantidad} {f.unidad}
+                  </p>
+                  <p><span className="text-stone-500">Cargado por:</span> {f.cargado_por_nombre}</p>
+                  {f.observaciones && (
+                    <p><span className="text-stone-500">Observaciones:</span> {f.observaciones}</p>
+                  )}
+                  <p className="pt-1 text-xs text-stone-400">
+                    Cargado el {new Date(f.created_at).toLocaleString("es-AR")}
+                  </p>
+                </div>
+              </div>
+            ))}
+
+            <div className="rounded-xl bg-stone-50 px-4 py-3 text-sm font-medium text-stone-700 shadow-sm ring-1 ring-stone-200">
+              Total ({filas.length} entregas): {totalCantidad.toFixed(2)}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Escritorio: tabla, sin cambios */}
+      <div className="hidden overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-stone-200 md:block">
         <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
