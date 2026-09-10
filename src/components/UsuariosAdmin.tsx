@@ -112,11 +112,14 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          type="email"
-          placeholder="Usuario (email)"
+          type="text"
+          placeholder="Nombre de usuario (para loguearse)"
           required
           className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         />
+        <p className="-mt-2 text-xs text-stone-400">
+          No hace falta que sea un email real, por ejemplo alcanza con &quot;tomi&quot;.
+        </p>
         <input
           value={password}
           onChange={(e) => setPassword(e.target.value)}

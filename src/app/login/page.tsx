@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { normalizarUsuarioAEmail } from "@/lib/usuario";
 
 export default function LoginPage() {
   return (
@@ -33,7 +34,10 @@ function LoginForm() {
 
     setCargando(true);
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: normalizarUsuarioAEmail(email),
+      password,
+    });
     setCargando(false);
 
     if (error) {
@@ -79,7 +83,7 @@ function LoginForm() {
               </label>
               <input
                 id="email"
-                type="email"
+                type="text"
                 required
                 autoComplete="username"
                 value={email}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { normalizarUsuarioAEmail } from "@/lib/usuario";
 
 const ROLES_VALIDOS = ["tractorista", "gerente", "encargado"];
 
@@ -35,16 +36,21 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient();
+  const emailFinal = normalizarUsuarioAEmail(email);
 
   const { data, error } = await admin.auth.admin.createUser({
-    email,
+    email: emailFinal,
     password,
     email_confirm: true,
     user_metadata: { nombre, rol },
   });
 
   if (error || !data.user) {
-    return NextResponse.json({ error: error?.message ?? "No se pudo crear el usuario" }, { status: 400 });
+    const yaExiste = error?.message?.toLowerCase().includes("already");
+    return NextResponse.json(
+      { error: yaExiste ? "Ya existe un usuario con ese nombre." : error?.message ?? "No se pudo crear el usuario" },
+      { status: 400 },
+    );
   }
 
   // El trigger de la base ya crea el perfil, pero lo confirmamos/sobreescribimos acá
