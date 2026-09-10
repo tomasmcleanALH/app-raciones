@@ -236,6 +236,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
             <option value="kg">kg</option>
             <option value="tn">tn</option>
             <option value="bolsas">bolsas</option>
+            <option value="unidades">unidades</option>
           </select>
         </div>
       </div>
