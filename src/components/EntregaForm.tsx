@@ -28,6 +28,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
 
   const [enviando, setEnviando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "offline" | "error"; texto: string } | null>(null);
+  const [revisando, setRevisando] = useState(false);
 
   useEffect(() => {
     Promise.all([getLotesActivos(), getAlimentosActivos()])
@@ -44,13 +45,18 @@ export default function EntregaForm({ userId }: { userId: string }) {
   function limpiarFormulario() {
     setCantidad("");
     setObservaciones("");
+    setRevisando(false);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handlePasarARevision(e: React.FormEvent) {
     e.preventDefault();
     setMensaje(null);
-
     if (!loteId || !alimentoId || !cantidad) return;
+    setRevisando(true);
+  }
+
+  async function confirmarEnvio() {
+    setMensaje(null);
 
     const entrega = {
       client_id: uuidv4(),
@@ -104,8 +110,67 @@ export default function EntregaForm({ userId }: { userId: string }) {
     );
   }
 
+  if (revisando) {
+    const nombreAlimento = alimentos.find((a) => a.id === alimentoId)?.nombre ?? "—";
+    const nombreLote = lotes.find((l) => l.id === loteId)?.nombre ?? "—";
+
+    return (
+      <div className="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
+        <h2 className="text-sm font-medium text-stone-500">Revisá antes de enviar</h2>
+
+        <dl className="divide-y divide-stone-100 rounded-lg border border-stone-200">
+          {[
+            ["Fecha de entrega", fecha],
+            ["Tipo de alimento", nombreAlimento],
+            ["Lote destino", nombreLote],
+            ["Cantidad", `${cantidad} ${unidad}`],
+            ["Observaciones", observaciones.trim() || "—"],
+          ].map(([label, valor]) => (
+            <div key={label} className="flex justify-between px-4 py-2.5 text-sm">
+              <dt className="text-stone-500">{label}</dt>
+              <dd className="font-medium text-stone-900">{valor}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {mensaje && (
+          <p
+            className={`rounded-lg p-3 text-sm ${
+              mensaje.tipo === "ok"
+                ? "bg-emerald-50 text-emerald-800"
+                : mensaje.tipo === "offline"
+                  ? "bg-amber-50 text-amber-800"
+                  : "bg-red-50 text-red-700"
+            }`}
+          >
+            {mensaje.texto}
+          </p>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setRevisando(false)}
+            disabled={enviando}
+            className="flex-1 rounded-lg border border-stone-300 px-4 py-3 text-base font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60"
+          >
+            Volver a editar
+          </button>
+          <button
+            type="button"
+            onClick={confirmarEnvio}
+            disabled={enviando}
+            className="flex-1 rounded-lg bg-emerald-700 px-4 py-3 text-base font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+          >
+            {enviando ? "Enviando..." : "Confirmar y enviar"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
+    <form onSubmit={handlePasarARevision} className="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
       <div>
         <label className="block text-sm font-medium text-stone-700">Fecha de entrega</label>
         <input
@@ -201,10 +266,9 @@ export default function EntregaForm({ userId }: { userId: string }) {
 
       <button
         type="submit"
-        disabled={enviando}
-        className="w-full rounded-lg bg-emerald-700 px-4 py-3 text-base font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
+        className="w-full rounded-lg bg-emerald-700 px-4 py-3 text-base font-medium text-white hover:bg-emerald-800"
       >
-        {enviando ? "Guardando..." : "Registrar entrega"}
+        Revisar entrega
       </button>
     </form>
   );

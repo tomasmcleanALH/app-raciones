@@ -11,7 +11,7 @@ async function verificarEncargado() {
   const { data: profile } = await supabase.from("profiles").select("rol").eq("id", user.id).single();
   if (!profile || profile.rol !== "encargado") return { ok: false as const, status: 403 };
 
-  return { ok: true as const };
+  return { ok: true as const, userId: user.id };
 }
 
 export async function POST(request: Request) {
@@ -74,6 +74,44 @@ export async function PATCH(request: Request) {
   const admin = createAdminClient();
   const { error } = await admin.from("profiles").update(cambios).eq("id", id);
 
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(request: Request) {
+  const chequeo = await verificarEncargado();
+  if (!chequeo.ok) {
+    return NextResponse.json({ error: "No autorizado" }, { status: chequeo.status });
+  }
+
+  const { id } = await request.json();
+  if (!id) {
+    return NextResponse.json({ error: "Falta id" }, { status: 400 });
+  }
+  if (id === chequeo.userId) {
+    return NextResponse.json({ error: "No podés borrar tu propio usuario" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+
+  // Si el usuario ya cargó entregas, borrarlo rompería la referencia en "entregas"
+  // (a propósito: así no se pierde el historial). En ese caso, avisamos y sugerimos desactivar.
+  const { count } = await admin
+    .from("entregas")
+    .select("id", { count: "exact", head: true })
+    .eq("cargado_por", id);
+
+  if (count && count > 0) {
+    return NextResponse.json(
+      { error: `Este usuario ya cargó ${count} entrega(s). No se puede borrar sin perder ese historial: desactivalo en cambio.` },
+      { status: 400 },
+    );
+  }
+
+  const { error } = await admin.auth.admin.deleteUser(id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }

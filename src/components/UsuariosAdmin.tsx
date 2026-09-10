@@ -16,6 +16,10 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
+  const [confirmandoBorrado, setConfirmandoBorrado] = useState<string | null>(null);
+  const [errorBorrado, setErrorBorrado] = useState<string | null>(null);
+  const [borrando, setBorrando] = useState<string | null>(null);
+
   async function recargar() {
     const supabase = createClient();
     const { data } = await supabase.from("profiles").select("*").order("nombre");
@@ -60,6 +64,25 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, ...cambios }),
     });
+    recargar();
+  }
+
+  async function borrar(id: string) {
+    setErrorBorrado(null);
+    setBorrando(id);
+    const res = await fetch("/api/admin/usuarios", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const data = await res.json();
+    setBorrando(null);
+    setConfirmandoBorrado(null);
+
+    if (!res.ok) {
+      setErrorBorrado(data.error ?? "No se pudo borrar el usuario");
+      return;
+    }
     recargar();
   }
 
@@ -114,20 +137,22 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
         </button>
       </form>
 
+      {errorBorrado && <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{errorBorrado}</p>}
+
       <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-stone-200">
         {cargando ? (
           <p className="p-4 text-sm text-stone-400">Cargando...</p>
         ) : (
           <ul>
             {usuarios.map((u) => (
-              <li key={u.id} className="flex items-center justify-between border-b border-stone-100 px-4 py-3 last:border-0">
-                <div>
-                  <span className={u.activo ? "" : "text-stone-400 line-through"}>{u.nombre}</span>
-                  <span className="ml-2 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{u.rol}</span>
-                </div>
-                <div className="flex gap-2">
-                  {u.id !== miPropioId && (
-                    <>
+              <li key={u.id} className="border-b border-stone-100 px-4 py-3 last:border-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className={u.activo ? "" : "text-stone-400 line-through"}>{u.nombre}</span>
+                    <span className="ml-2 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{u.rol}</span>
+                  </div>
+                  {u.id !== miPropioId && confirmandoBorrado !== u.id && (
+                    <div className="flex gap-2">
                       <button
                         onClick={() => cambiar(u.id, { rol: u.rol === "encargado" ? "tractorista" : "encargado" })}
                         className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600 hover:bg-stone-200"
@@ -142,16 +167,49 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
                       >
                         {u.activo ? "Desactivar" : "Activar"}
                       </button>
-                    </>
+                      <button
+                        onClick={() => {
+                          setErrorBorrado(null);
+                          setConfirmandoBorrado(u.id);
+                        }}
+                        className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100"
+                      >
+                        Borrar
+                      </button>
+                    </div>
                   )}
                 </div>
+
+                {confirmandoBorrado === u.id && (
+                  <div className="mt-2 flex items-center justify-between rounded-lg bg-red-50 px-3 py-2">
+                    <span className="text-xs text-red-800">
+                      ¿Borrar a &quot;{u.nombre}&quot; para siempre? No se puede deshacer.
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setConfirmandoBorrado(null)}
+                        className="rounded-full bg-white px-3 py-1 text-xs font-medium text-stone-600 hover:bg-stone-100"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={() => borrar(u.id)}
+                        disabled={borrando === u.id}
+                        className="rounded-full bg-red-700 px-3 py-1 text-xs font-medium text-white hover:bg-red-800 disabled:opacity-60"
+                      >
+                        {borrando === u.id ? "Borrando..." : "Sí, borrar"}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
         )}
       </div>
       <p className="mt-2 text-xs text-stone-400">
-        Desactivar un usuario le bloquea el acceso a la app, pero no borra sus entregas ya cargadas.
+        Desactivar bloquea el acceso sin borrar el historial. Borrar es permanente y sólo se puede
+        hacer si ese usuario todavía no cargó ninguna entrega.
       </p>
     </div>
   );
