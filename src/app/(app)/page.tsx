@@ -6,11 +6,11 @@ import { requireProfile } from "@/lib/auth";
 export default async function HomePage() {
   const { userId, profile } = await requireProfile();
 
-  if (profile.rol === "encargado") {
+  if (profile.rol === "encargado" || profile.rol === "gerente") {
     return (
       <div>
         <h1 className="mb-4 text-xl font-bold text-stone-900">Todas las entregas</h1>
-        <GrillaTable />
+        <GrillaTable puedeEditar={profile.rol === "encargado"} />
       </div>
     );
   }

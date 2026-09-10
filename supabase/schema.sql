@@ -13,7 +13,7 @@ create extension if not exists "pgcrypto";
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   nombre text not null,
-  rol text not null default 'tractorista' check (rol in ('tractorista', 'encargado')),
+  rol text not null default 'tractorista' check (rol in ('tractorista', 'encargado', 'gerente')),
   activo boolean not null default true,
   created_at timestamptz not null default now()
 );
@@ -152,7 +152,11 @@ create policy alimentos_modificar on public.alimentos
 drop policy if exists entregas_select on public.entregas;
 create policy entregas_select on public.entregas
   for select to authenticated
-  using (cargado_por = auth.uid() or public.tiene_rol('encargado'));
+  using (
+    cargado_por = auth.uid()
+    or public.tiene_rol('encargado')
+    or public.tiene_rol('gerente')
+  );
 
 drop policy if exists entregas_insert on public.entregas;
 create policy entregas_insert on public.entregas

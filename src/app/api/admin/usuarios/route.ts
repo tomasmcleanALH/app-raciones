@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 
+const ROLES_VALIDOS = ["tractorista", "gerente", "encargado"];
+
 async function verificarEncargado() {
   const supabase = await createClient();
   const {
@@ -28,7 +30,7 @@ export async function POST(request: Request) {
   if (password.length < 6) {
     return NextResponse.json({ error: "La contraseña debe tener al menos 6 caracteres" }, { status: 400 });
   }
-  if (rol !== "tractorista" && rol !== "encargado") {
+  if (!ROLES_VALIDOS.includes(rol)) {
     return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
   }
 
@@ -65,7 +67,7 @@ export async function PATCH(request: Request) {
 
   const cambios: Record<string, unknown> = {};
   if (typeof activo === "boolean") cambios.activo = activo;
-  if (rol === "tractorista" || rol === "encargado") cambios.rol = rol;
+  if (ROLES_VALIDOS.includes(rol)) cambios.rol = rol;
 
   if (Object.keys(cambios).length === 0) {
     return NextResponse.json({ error: "Nada para actualizar" }, { status: 400 });

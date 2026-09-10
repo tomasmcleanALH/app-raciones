@@ -29,7 +29,7 @@ interface EntregaEditable {
   observaciones: string;
 }
 
-export default function GrillaTable() {
+export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: boolean }) {
   const [filas, setFilas] = useState<FilaGrilla[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
@@ -116,6 +116,7 @@ export default function GrillaTable() {
   }, [cargarEntregas]);
 
   const totalCantidad = useMemo(() => filas.reduce((acc, f) => acc + Number(f.cantidad), 0), [filas]);
+  const totalColumnas = puedeEditar ? 9 : 8;
 
   function abrirEdicion(f: FilaGrilla) {
     setMenuAbierto(null);
@@ -309,17 +310,17 @@ export default function GrillaTable() {
               <th className="px-4 py-2.5 font-medium">Cargado por</th>
               <th className="px-4 py-2.5 font-medium">Observaciones</th>
               <th className="px-4 py-2.5 font-medium">Cargado el</th>
-              <th className="w-10 px-2 py-2.5"></th>
+              {puedeEditar && <th className="w-10 px-2 py-2.5"></th>}
             </tr>
           </thead>
           <tbody>
             {cargando ? (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-stone-400">Cargando...</td>
+                <td colSpan={totalColumnas} className="px-4 py-6 text-center text-stone-400">Cargando...</td>
               </tr>
             ) : filas.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-stone-400">No hay entregas registradas.</td>
+                <td colSpan={totalColumnas} className="px-4 py-6 text-center text-stone-400">No hay entregas registradas.</td>
               </tr>
             ) : (
               filas.map((f) => (
@@ -347,6 +348,7 @@ export default function GrillaTable() {
                   <td className="px-4 py-2.5 text-stone-400">
                     {new Date(f.created_at).toLocaleString("es-AR")}
                   </td>
+                  {puedeEditar && (
                   <td className="relative px-2 py-2.5 text-right">
                     <button
                       onClick={() => {
@@ -406,6 +408,7 @@ export default function GrillaTable() {
                       </>
                     )}
                   </td>
+                  )}
                 </tr>
               ))
             )}
@@ -415,7 +418,7 @@ export default function GrillaTable() {
               <tr className="border-t border-stone-200 bg-stone-50 font-medium">
                 <td className="px-4 py-2.5" colSpan={4}>Total ({filas.length} entregas)</td>
                 <td className="px-4 py-2.5">{totalCantidad.toFixed(2)}</td>
-                <td className="px-4 py-2.5" colSpan={4}></td>
+                <td className="px-4 py-2.5" colSpan={puedeEditar ? 4 : 3}></td>
               </tr>
             </tfoot>
           )}

@@ -12,16 +12,17 @@ export default function Nav({ nombre, rol }: { nombre: string; rol: Rol }) {
   const router = useRouter();
   const [menuAbierto, setMenuAbierto] = useState(false);
 
-  const links =
-    rol === "encargado"
-      ? [
-          { href: "/", label: "Grilla" },
-          { href: "/entregar", label: "Cargar entrega" },
-          { href: "/admin/lotes", label: "Lotes" },
-          { href: "/admin/alimentos", label: "Alimentos" },
-          { href: "/admin/usuarios", label: "Usuarios" },
-        ]
-      : [{ href: "/", label: "Cargar entrega" }];
+  const veTodo = rol === "encargado" || rol === "gerente";
+
+  const links = veTodo
+    ? [
+        { href: "/", label: "Grilla" },
+        { href: "/entregar", label: "Cargar entrega" },
+        { href: "/admin/lotes", label: "Lotes" },
+        { href: "/admin/alimentos", label: "Alimentos" },
+        ...(rol === "encargado" ? [{ href: "/admin/usuarios", label: "Usuarios" }] : []),
+      ]
+    : [{ href: "/", label: "Cargar entrega" }];
 
   // Si cambia de página (se tocó un link), cerrar el menú de celular.
   useEffect(() => {

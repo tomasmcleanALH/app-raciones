@@ -38,3 +38,12 @@ export async function requireEncargado() {
   }
   return datos;
 }
+
+/** Encargado (control total) o Gerente (sólo lectura en lotes/alimentos, ve toda la grilla). */
+export async function requireEncargadoOGerente() {
+  const datos = await requireProfile();
+  if (datos.profile.rol !== "encargado" && datos.profile.rol !== "gerente") {
+    redirect("/");
+  }
+  return datos;
+}

@@ -1,4 +1,4 @@
-export type Rol = "tractorista" | "encargado";
+export type Rol = "tractorista" | "encargado" | "gerente";
 
 export interface Profile {
   id: string;

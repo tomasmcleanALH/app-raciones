@@ -9,7 +9,10 @@ import type { Profile, Rol } from "@/lib/types";
 const ETIQUETA_ROL: Record<Rol, string> = {
   tractorista: "Usuario",
   encargado: "Administrador",
+  gerente: "Gerente",
 };
+
+const ROLES: Rol[] = ["tractorista", "gerente", "encargado"];
 
 export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
   const [usuarios, setUsuarios] = useState<Profile[]>([]);
@@ -18,7 +21,7 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rol, setRol] = useState<"tractorista" | "encargado">("tractorista");
+  const [rol, setRol] = useState<Rol>("tractorista");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -65,7 +68,7 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
     recargar();
   }
 
-  async function cambiar(id: string, cambios: { activo?: boolean; rol?: "tractorista" | "encargado" }) {
+  async function cambiar(id: string, cambios: { activo?: boolean; rol?: Rol }) {
     await fetch("/api/admin/usuarios", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -125,11 +128,12 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
         />
         <select
           value={rol}
-          onChange={(e) => setRol(e.target.value as "tractorista" | "encargado")}
+          onChange={(e) => setRol(e.target.value as Rol)}
           className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
         >
-          <option value="tractorista">{ETIQUETA_ROL.tractorista}</option>
-          <option value="encargado">{ETIQUETA_ROL.encargado}</option>
+          {ROLES.map((r) => (
+            <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>
+          ))}
         </select>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -159,13 +163,16 @@ export default function UsuariosAdmin({ miPropioId }: { miPropioId: string }) {
                     <span className="ml-2 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{ETIQUETA_ROL[u.rol]}</span>
                   </div>
                   {u.id !== miPropioId && confirmandoBorrado !== u.id && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => cambiar(u.id, { rol: u.rol === "encargado" ? "tractorista" : "encargado" })}
-                        className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600 hover:bg-stone-200"
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={u.rol}
+                        onChange={(e) => cambiar(u.id, { rol: e.target.value as Rol })}
+                        className="rounded-full border border-stone-200 bg-stone-100 px-2 py-1 text-xs font-medium text-stone-600 hover:bg-stone-200"
                       >
-                        Hacer {u.rol === "encargado" ? ETIQUETA_ROL.tractorista : ETIQUETA_ROL.encargado}
-                      </button>
+                        {ROLES.map((r) => (
+                          <option key={r} value={r}>{ETIQUETA_ROL[r]}</option>
+                        ))}
+                      </select>
                       <button
                         onClick={() => cambiar(u.id, { activo: !u.activo })}
                         className={`rounded-full px-3 py-1 text-xs font-medium ${

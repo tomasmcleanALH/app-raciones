@@ -9,8 +9,15 @@ interface Item {
   activo: boolean;
 }
 
+interface Props {
+  tabla: "lotes" | "alimentos";
+  titulo: string;
+  /** true = sólo puede ver la lista (rol Gerente); no agrega, edita, borra ni desactiva. */
+  soloLectura?: boolean;
+}
+
 /** CRUD simple y genérico para las tablas "lotes" y "alimentos" (mismo formato). */
-export default function CatalogoAdmin({ tabla, titulo }: { tabla: "lotes" | "alimentos"; titulo: string }) {
+export default function CatalogoAdmin({ tabla, titulo, soloLectura = false }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [cargando, setCargando] = useState(true);
@@ -117,17 +124,25 @@ export default function CatalogoAdmin({ tabla, titulo }: { tabla: "lotes" | "ali
     <div className="mx-auto max-w-lg">
       <h1 className="mb-4 text-xl font-bold text-stone-900">{titulo}</h1>
 
-      <form onSubmit={agregar} className="mb-4 flex gap-2">
-        <input
-          value={nombreNuevo}
-          onChange={(e) => setNombreNuevo(e.target.value)}
-          placeholder="Nombre nuevo..."
-          className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-        />
-        <button type="submit" className="rounded-lg bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-800">
-          Agregar
-        </button>
-      </form>
+      {soloLectura && (
+        <p className="mb-4 rounded-lg bg-stone-100 p-3 text-sm text-stone-600">
+          Modo consulta: podés ver la lista, pero no agregar, editar ni borrar.
+        </p>
+      )}
+
+      {!soloLectura && (
+        <form onSubmit={agregar} className="mb-4 flex gap-2">
+          <input
+            value={nombreNuevo}
+            onChange={(e) => setNombreNuevo(e.target.value)}
+            placeholder="Nombre nuevo..."
+            className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+          />
+          <button type="submit" className="rounded-lg bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-800">
+            Agregar
+          </button>
+        </form>
+      )}
 
       {error && <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {errorBorrado && <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{errorBorrado}</p>}
@@ -144,6 +159,7 @@ export default function CatalogoAdmin({ tabla, titulo }: { tabla: "lotes" | "ali
                 <div className="flex items-center justify-between">
                   <span className={item.activo ? "" : "opacity-40"}>{item.nombre}</span>
 
+                  {!soloLectura && (
                   <div className="relative">
                     <button
                       onClick={() => {
@@ -211,16 +227,19 @@ export default function CatalogoAdmin({ tabla, titulo }: { tabla: "lotes" | "ali
                       </>
                     )}
                   </div>
+                  )}
                 </div>
               </li>
             ))}
           </ul>
         )}
       </div>
+      {!soloLectura && (
       <p className="mt-2 text-xs text-stone-400">
         Desactivar no borra el historial: sólo deja de aparecer como opción al cargar una entrega nueva.
         Borrar es permanente y sólo se puede hacer si todavía no se usó en ninguna entrega.
       </p>
+      )}
 
       {editando && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
