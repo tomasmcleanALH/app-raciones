@@ -282,6 +282,26 @@ export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: bool
     </>
   );
 
+  const botonExportar = (
+    <button
+      onClick={exportarExcel}
+      disabled={seleccionados.size === 0}
+      title={`Exportar a Excel${seleccionados.size > 0 ? ` (${seleccionados.size} seleccionadas)` : ""}`}
+      aria-label="Exportar a Excel"
+      className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1D6F42] text-white hover:bg-[#175c37] disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400"
+    >
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <path d="M4 9h16M4 15h16M10 3v18M14 3v18" strokeWidth="1.1" opacity="0.65" />
+      </svg>
+      {seleccionados.size > 0 && (
+        <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-700 px-1 text-[10px] font-bold text-white">
+          {seleccionados.size}
+        </span>
+      )}
+    </button>
+  );
+
   const menuAcciones = (f: FilaGrilla) => (
     <>
       <button
@@ -332,34 +352,24 @@ export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: bool
   return (
     <div>
       {/* Filtros — escritorio: barra fija, igual que siempre */}
-      <div className="mb-4 hidden flex-wrap gap-2 md:flex">
+      <div className="mb-4 hidden flex-wrap items-center gap-2 md:flex">
         {controlesFiltro}
-        <button
-          onClick={exportarExcel}
-          disabled={seleccionados.size === 0}
-          className="ml-auto rounded-lg bg-brand-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400"
-        >
-          Exportar a Excel{seleccionados.size > 0 ? ` (${seleccionados.size})` : ""}
-        </button>
+        <div className="ml-auto">{botonExportar}</div>
       </div>
 
-      {/* Filtros — celular: acordeón desplegable */}
-      <details className="mb-4 rounded-xl bg-white shadow-sm ring-1 ring-stone-200 md:hidden">
-        <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-stone-700">
-          <span className="inline-flex items-center gap-1.5">
-            Filtros de búsqueda
-            {hayFiltrosActivos && <span className="h-1.5 w-1.5 rounded-full bg-brand-700" />}
-          </span>
-        </summary>
-        <div className="flex flex-col gap-2 border-t border-stone-100 p-3">{controlesFiltro}</div>
-      </details>
-      <button
-        onClick={exportarExcel}
-        disabled={seleccionados.size === 0}
-        className="mb-4 w-full rounded-lg bg-brand-700 px-3 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 md:hidden"
-      >
-        Exportar a Excel{seleccionados.size > 0 ? ` (${seleccionados.size})` : ""}
-      </button>
+      {/* Filtros — celular: acordeón desplegable, con el ícono de exportar al lado */}
+      <div className="mb-4 flex items-start gap-2 md:hidden">
+        <details className="flex-1 rounded-xl bg-white shadow-sm ring-1 ring-stone-200">
+          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-stone-700">
+            <span className="inline-flex items-center gap-1.5">
+              Filtros de búsqueda
+              {hayFiltrosActivos && <span className="h-1.5 w-1.5 rounded-full bg-brand-700" />}
+            </span>
+          </summary>
+          <div className="flex flex-col gap-2 border-t border-stone-100 p-3">{controlesFiltro}</div>
+        </details>
+        {botonExportar}
+      </div>
 
       {error && <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{error}</p>}
 
