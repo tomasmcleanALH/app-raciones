@@ -49,7 +49,7 @@ function LoginForm() {
     <div className="flex min-h-screen flex-1 items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-stone-900">App Raciones</h1>
+          <h1 className="text-2xl font-bold text-stone-900">Operaciones</h1>
           <p className="mt-1 text-sm text-stone-500">Entregas de alimento a las recrías</p>
         </div>
 

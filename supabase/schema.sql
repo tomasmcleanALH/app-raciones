@@ -1,5 +1,5 @@
 -- ============================================================
--- App Raciones - esquema de base de datos
+-- Operaciones - esquema de base de datos
 -- Copiar y pegar este archivo completo en:
 -- Supabase Dashboard > SQL Editor > New query > Run
 -- ============================================================

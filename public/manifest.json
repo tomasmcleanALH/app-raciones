@@ -1,6 +1,6 @@
 {
-  "name": "App Raciones",
-  "short_name": "Raciones",
+  "name": "Operaciones",
+  "short_name": "Operaciones",
   "description": "Registro de entregas de alimento a las recrías",
   "start_url": "/",
   "display": "standalone",

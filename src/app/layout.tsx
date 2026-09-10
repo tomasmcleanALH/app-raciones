@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "App Raciones",
+  title: "Operaciones",
   description: "Registro de entregas de alimento a las recrías",
   manifest: "/manifest.json",
   icons: {

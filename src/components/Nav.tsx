@@ -31,7 +31,7 @@ export default function Nav({ nombre, rol }: { nombre: string; rol: Rol }) {
   return (
     <header className="border-b border-stone-200 bg-white">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3">
-        <span className="font-bold text-emerald-800">App Raciones</span>
+        <span className="font-bold text-emerald-800">Operaciones</span>
 
         <nav className="flex flex-1 flex-wrap gap-1">
           {links.map((link) => (
