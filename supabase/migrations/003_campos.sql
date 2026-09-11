@@ -1,32 +1,16 @@
 -- ============================================================
--- Operaciones - esquema de base de datos
+-- Multi-campo: agrega la entidad "Campo" (San Jorge, y los que se
+-- sumen despues), un cuarto rol "dueno" que ve y administra TODO sin
+-- restriccion, y acota "encargado" (Administrador), "gerente" y
+-- "tractorista" (Usuario) al campo al que pertenecen.
+--
 -- Copiar y pegar este archivo completo en:
 -- Supabase Dashboard > SQL Editor > New query > Run
---
--- Para un proyecto que YA tiene datos cargados con una versión
--- anterior de este esquema, no correr este archivo: usar en cambio
--- los scripts de supabase/migrations/ en orden.
+-- (proyecto que ya tiene corridos schema.sql, 002_rol_gerente.sql)
 -- ============================================================
 
--- Extensión para generar UUIDs
-create extension if not exists "pgcrypto";
-
 -- ------------------------------------------------------------
--- Tabla: profiles (datos de cada usuario, ligada a auth.users)
--- rol "dueno": ve y administra todo, sin importar el campo.
--- Los demás roles están acotados al campo (o campos) al que
--- pertenecen, ver tabla usuarios_campos más abajo.
--- ------------------------------------------------------------
-create table if not exists public.profiles (
-  id uuid primary key references auth.users (id) on delete cascade,
-  nombre text not null,
-  rol text not null default 'tractorista' check (rol in ('tractorista', 'encargado', 'gerente', 'dueno')),
-  activo boolean not null default true,
-  created_at timestamptz not null default now()
-);
-
--- ------------------------------------------------------------
--- Tabla: campos (establecimientos: "San Jorge", etc.)
+-- 1) Tabla de campos
 -- ------------------------------------------------------------
 create table if not exists public.campos (
   id uuid primary key default gen_random_uuid(),
@@ -36,9 +20,9 @@ create table if not exists public.campos (
 );
 
 -- ------------------------------------------------------------
--- Tabla: usuarios_campos (a qué campo pertenece cada usuario).
--- Hoy se usa de a uno (una fila por usuario), pero queda armada
--- para soportar varios campos por usuario en el futuro.
+-- 2) A que campo(s) pertenece cada usuario. Hoy se usa de a uno
+--    (una fila por usuario), pero queda armado para soportar varios
+--    campos por usuario en el futuro sin tener que migrar de nuevo.
 -- ------------------------------------------------------------
 create table if not exists public.usuarios_campos (
   usuario_id uuid not null references public.profiles (id) on delete cascade,
@@ -47,54 +31,51 @@ create table if not exists public.usuarios_campos (
 );
 
 -- ------------------------------------------------------------
--- Tabla: lotes (pertenece a un campo)
+-- 3) Nuevo rol "dueno"
 -- ------------------------------------------------------------
-create table if not exists public.lotes (
-  id uuid primary key default gen_random_uuid(),
-  campo_id uuid not null references public.campos (id),
-  nombre text not null,
-  activo boolean not null default true,
-  created_at timestamptz not null default now(),
-  unique (campo_id, nombre)
-);
+alter table public.profiles drop constraint if exists profiles_rol_check;
+alter table public.profiles add constraint profiles_rol_check
+  check (rol in ('tractorista', 'encargado', 'gerente', 'dueno'));
 
 -- ------------------------------------------------------------
--- Tabla: alimentos (pertenece a un campo)
+-- 4) Lotes y alimentos pasan a pertenecer a un campo
 -- ------------------------------------------------------------
-create table if not exists public.alimentos (
-  id uuid primary key default gen_random_uuid(),
-  campo_id uuid not null references public.campos (id),
-  nombre text not null,
-  activo boolean not null default true,
-  created_at timestamptz not null default now(),
-  unique (campo_id, nombre)
-);
+alter table public.lotes add column if not exists campo_id uuid references public.campos (id);
+alter table public.alimentos add column if not exists campo_id uuid references public.campos (id);
 
 -- ------------------------------------------------------------
--- Tabla: entregas
--- client_id: generado en el celular al crear la entrega (incluso offline).
---   Sirve para no duplicar si se reintenta el envío al recuperar señal.
--- El campo de la entrega es el campo de su lote (no se repite acá).
+-- 5) Migración de los datos que ya existen: todo pasa a "San Jorge"
 -- ------------------------------------------------------------
-create table if not exists public.entregas (
-  id uuid primary key default gen_random_uuid(),
-  client_id uuid not null unique,
-  fecha_entrega date not null,
-  lote_id uuid not null references public.lotes (id),
-  alimento_id uuid not null references public.alimentos (id),
-  cantidad numeric(10, 2) not null check (cantidad > 0),
-  unidad text not null default 'kg',
-  observaciones text,
-  cargado_por uuid not null references public.profiles (id),
-  created_at timestamptz not null default now()
-);
+insert into public.campos (nombre) values ('San Jorge')
+  on conflict (nombre) do nothing;
 
-create index if not exists entregas_fecha_idx on public.entregas (fecha_entrega desc);
-create index if not exists entregas_cargado_por_idx on public.entregas (cargado_por);
+update public.lotes
+  set campo_id = (select id from public.campos where nombre = 'San Jorge')
+  where campo_id is null;
+
+update public.alimentos
+  set campo_id = (select id from public.campos where nombre = 'San Jorge')
+  where campo_id is null;
+
+insert into public.usuarios_campos (usuario_id, campo_id)
+  select p.id, (select id from public.campos where nombre = 'San Jorge')
+  from public.profiles p
+  where p.rol <> 'dueno'
+  on conflict do nothing;
+
+-- Tomas Mclean pasa a ser Dueño (ajustar el mail si hace falta)
+update public.profiles set rol = 'dueno'
+  where id = (select id from auth.users where email = 'tomas.mclean@lashelenas.com.ar');
 
 -- ------------------------------------------------------------
--- Funciones auxiliares (security definer: saltan RLS al consultar
--- profiles/usuarios_campos, para evitar recursión infinita)
+-- 6) Ya migrados los datos, campo_id pasa a ser obligatorio
+-- ------------------------------------------------------------
+alter table public.lotes alter column campo_id set not null;
+alter table public.alimentos alter column campo_id set not null;
+
+-- ------------------------------------------------------------
+-- 7) Funciones auxiliares (security definer: saltan RLS al
+--    consultar profiles/usuarios_campos, para evitar recursión)
 -- ------------------------------------------------------------
 create or replace function public.es_dueno()
 returns boolean language sql security definer stable set search_path = public as $$
@@ -146,59 +127,11 @@ returns boolean language sql security definer stable set search_path = public as
 $$;
 
 -- ------------------------------------------------------------
--- Trigger: al crear un usuario en auth.users, crear su perfil
--- (rol/nombre reales, y el campo al que pertenece, los completa el
--- panel de administración con la service_role key; esto es sólo
--- una red de seguridad)
+-- 8) RLS: campos / usuarios_campos
 -- ------------------------------------------------------------
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  insert into public.profiles (id, nombre, rol)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'nombre', new.email),
-    coalesce(new.raw_user_meta_data->>'rol', 'tractorista')
-  )
-  on conflict (id) do nothing;
-  return new;
-end;
-$$;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
-
--- ------------------------------------------------------------
--- RLS (seguridad a nivel de fila)
--- ------------------------------------------------------------
-alter table public.profiles enable row level security;
 alter table public.campos enable row level security;
 alter table public.usuarios_campos enable row level security;
-alter table public.lotes enable row level security;
-alter table public.alimentos enable row level security;
-alter table public.entregas enable row level security;
 
--- profiles: se ve a sí mismo y a quien comparta campo con él/ella;
--- sólo puede editar su propio nombre, nunca su propio rol.
-drop policy if exists profiles_select on public.profiles;
-create policy profiles_select on public.profiles
-  for select to authenticated
-  using (id = auth.uid() or public.comparte_campo_con(id));
-
-drop policy if exists profiles_update_propio on public.profiles;
-create policy profiles_update_propio on public.profiles
-  for update to authenticated
-  using (id = auth.uid())
-  with check (id = auth.uid() and rol = (select rol from public.profiles where id = auth.uid()));
-
--- campos: cada uno ve los campos a los que pertenece (el dueño los ve
--- todos); sólo el dueño puede crear/editar/borrar campos.
 drop policy if exists campos_select on public.campos;
 create policy campos_select on public.campos
   for select to authenticated using (public.tiene_acceso_a_campo(id));
@@ -209,15 +142,24 @@ create policy campos_modificar on public.campos
   using (public.es_dueno())
   with check (public.es_dueno());
 
--- usuarios_campos: se lee la propia fila, o las de quienes administra
--- (mismo campo, rol encargado) o el dueño. Las escrituras se hacen
--- siempre con la service_role key desde /api/admin/usuarios.
 drop policy if exists usuarios_campos_select on public.usuarios_campos;
 create policy usuarios_campos_select on public.usuarios_campos
   for select to authenticated
   using (usuario_id = auth.uid() or public.es_admin_de_campo(campo_id));
+-- Las escrituras de usuarios_campos se hacen siempre con la
+-- service_role key desde /api/admin/usuarios; no se habilitan por RLS.
 
--- lotes: todos los del campo leen; sólo el admin de ese campo modifica
+-- ------------------------------------------------------------
+-- 9) RLS: profiles (reemplaza "todos ven todo")
+-- ------------------------------------------------------------
+drop policy if exists profiles_select on public.profiles;
+create policy profiles_select on public.profiles
+  for select to authenticated
+  using (id = auth.uid() or public.comparte_campo_con(id));
+
+-- ------------------------------------------------------------
+-- 10) RLS: lotes / alimentos, ahora por campo
+-- ------------------------------------------------------------
 drop policy if exists lotes_select on public.lotes;
 create policy lotes_select on public.lotes
   for select to authenticated using (public.tiene_acceso_a_campo(campo_id));
@@ -228,7 +170,6 @@ create policy lotes_modificar on public.lotes
   using (public.es_admin_de_campo(campo_id))
   with check (public.es_admin_de_campo(campo_id));
 
--- alimentos: todos los del campo leen; sólo el admin de ese campo modifica
 drop policy if exists alimentos_select on public.alimentos;
 create policy alimentos_select on public.alimentos
   for select to authenticated using (public.tiene_acceso_a_campo(campo_id));
@@ -239,8 +180,9 @@ create policy alimentos_modificar on public.alimentos
   using (public.es_admin_de_campo(campo_id))
   with check (public.es_admin_de_campo(campo_id));
 
--- entregas: cada usuario ve/crea las suyas; encargado/gerente/dueño
--- del campo del lote ven todas; sólo el admin de ese campo edita/borra
+-- ------------------------------------------------------------
+-- 11) RLS: entregas, ahora a través del campo de su lote
+-- ------------------------------------------------------------
 drop policy if exists entregas_select on public.entregas;
 create policy entregas_select on public.entregas
   for select to authenticated
@@ -271,12 +213,3 @@ drop policy if exists entregas_delete on public.entregas;
 create policy entregas_delete on public.entregas
   for delete to authenticated
   using (exists (select 1 from public.lotes l where l.id = entregas.lote_id and public.es_admin_de_campo(l.campo_id)));
-
--- ------------------------------------------------------------
--- Datos de ejemplo (opcional). Comentar/borrar si no se quiere.
--- ------------------------------------------------------------
--- insert into public.campos (nombre) values ('San Jorge');
--- insert into public.lotes (campo_id, nombre)
---   select id, 'Lote 1' from public.campos where nombre = 'San Jorge';
--- insert into public.alimentos (campo_id, nombre)
---   select id, 'Silo de maíz' from public.campos where nombre = 'San Jorge';

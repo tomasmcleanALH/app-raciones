@@ -29,7 +29,7 @@ interface EntregaEditable {
   observaciones: string;
 }
 
-export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: boolean }) {
+export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: string; puedeEditar?: boolean }) {
   const [filas, setFilas] = useState<FilaGrilla[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
@@ -55,15 +55,19 @@ export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: bool
   useEffect(() => {
     const supabase = createClient();
     Promise.all([
-      supabase.from("lotes").select("*").order("nombre"),
-      supabase.from("alimentos").select("*").order("nombre"),
-      supabase.from("profiles").select("*").order("nombre"),
-    ]).then(([l, a, p]) => {
+      supabase.from("lotes").select("*").eq("campo_id", campoId).order("nombre"),
+      supabase.from("alimentos").select("*").eq("campo_id", campoId).order("nombre"),
+      supabase.from("usuarios_campos").select("profiles(*)").eq("campo_id", campoId),
+    ]).then(([l, a, uc]) => {
       setLotes((l.data ?? []) as Lote[]);
       setAlimentos((a.data ?? []) as Alimento[]);
-      setTractoristas((p.data ?? []) as Profile[]);
+      const perfiles = (uc.data ?? [])
+        .map((fila: any) => fila.profiles as Profile)
+        .filter(Boolean)
+        .sort((a: Profile, b: Profile) => a.nombre.localeCompare(b.nombre));
+      setTractoristas(perfiles);
     });
-  }, []);
+  }, [campoId]);
 
   const cargarEntregas = useCallback(async () => {
     setCargando(true);
@@ -73,8 +77,9 @@ export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: bool
     let query = supabase
       .from("entregas")
       .select(
-        "id, fecha_entrega, cantidad, unidad, observaciones, created_at, lote_id, alimento_id, lotes(nombre), alimentos(nombre), profiles(nombre)",
+        "id, fecha_entrega, cantidad, unidad, observaciones, created_at, lote_id, alimento_id, lotes!inner(nombre, campo_id), alimentos(nombre), profiles(nombre)",
       )
+      .eq("lotes.campo_id", campoId)
       .order("fecha_entrega", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -109,7 +114,7 @@ export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: bool
     );
     setSeleccionados(new Set());
     setCargando(false);
-  }, [filtroLote, filtroAlimento, filtroUsuario, filtroDesde, filtroHasta]);
+  }, [campoId, filtroLote, filtroAlimento, filtroUsuario, filtroDesde, filtroHasta]);
 
   useEffect(() => {
     cargarEntregas();

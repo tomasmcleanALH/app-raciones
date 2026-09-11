@@ -1,4 +1,4 @@
-export type Rol = "tractorista" | "encargado" | "gerente";
+export type Rol = "tractorista" | "encargado" | "gerente" | "dueno";
 
 export interface Profile {
   id: string;
@@ -8,8 +8,16 @@ export interface Profile {
   created_at: string;
 }
 
+export interface Campo {
+  id: string;
+  nombre: string;
+  activo: boolean;
+  created_at: string;
+}
+
 export interface Lote {
   id: string;
+  campo_id: string;
   nombre: string;
   activo: boolean;
   created_at: string;
@@ -17,6 +25,7 @@ export interface Lote {
 
 export interface Alimento {
   id: string;
+  campo_id: string;
   nombre: string;
   activo: boolean;
   created_at: string;

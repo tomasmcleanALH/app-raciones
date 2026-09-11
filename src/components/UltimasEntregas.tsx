@@ -17,13 +17,13 @@ interface Fila {
 }
 
 /** Muestra al tractorista sus últimas entregas: las pendientes de subir + las últimas confirmadas. */
-export default function UltimasEntregas({ userId }: { userId: string }) {
+export default function UltimasEntregas({ userId, campoId }: { userId: string; campoId: string }) {
   const [filas, setFilas] = useState<Fila[] | null>(null);
 
   const cargar = useCallback(async () => {
     const [lotes, alimentos, pendientes] = await Promise.all([
-      getLotesActivos().catch(() => []),
-      getAlimentosActivos().catch(() => []),
+      getLotesActivos(campoId).catch(() => []),
+      getAlimentosActivos(campoId).catch(() => []),
       listarEntregasPendientes(),
     ]);
     const nombreLote = (id: string) => lotes.find((l) => l.id === id)?.nombre ?? "—";
@@ -61,7 +61,7 @@ export default function UltimasEntregas({ userId }: { userId: string }) {
     }
 
     setFilas([...filasPendientes, ...filasSincronizadas]);
-  }, [userId]);
+  }, [userId, campoId]);
 
   useEffect(() => {
     cargar();

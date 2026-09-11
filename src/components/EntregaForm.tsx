@@ -14,7 +14,7 @@ function hoyISO() {
   return new Date(d.getTime() - offset * 60_000).toISOString().slice(0, 10);
 }
 
-export default function EntregaForm({ userId }: { userId: string }) {
+export default function EntregaForm({ userId, campoId }: { userId: string; campoId: string }) {
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
@@ -31,7 +31,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
   const [revisando, setRevisando] = useState(false);
 
   useEffect(() => {
-    Promise.all([getLotesActivos(), getAlimentosActivos()])
+    Promise.all([getLotesActivos(campoId), getAlimentosActivos(campoId)])
       .then(([l, a]) => {
         setLotes(l);
         setAlimentos(a);
@@ -40,7 +40,7 @@ export default function EntregaForm({ userId }: { userId: string }) {
         setMensaje({ tipo: "error", texto: "No se pudieron cargar los lotes/alimentos. Conectate una vez a wifi y volvé a intentar." });
       })
       .finally(() => setCargandoCatalogos(false));
-  }, []);
+  }, [campoId]);
 
   function limpiarFormulario() {
     setCantidad("");

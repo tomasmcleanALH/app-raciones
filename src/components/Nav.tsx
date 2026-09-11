@@ -4,15 +4,26 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Rol } from "@/lib/types";
+import type { Campo, Rol } from "@/lib/types";
+import CampoSelector from "./CampoSelector";
 import SyncStatusBadge from "./SyncStatusBadge";
 
-export default function Nav({ nombre, rol }: { nombre: string; rol: Rol }) {
+export default function Nav({
+  nombre,
+  rol,
+  campo,
+  campos,
+}: {
+  nombre: string;
+  rol: Rol;
+  campo: Campo | null;
+  campos: Campo[];
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const [menuAbierto, setMenuAbierto] = useState(false);
 
-  const veTodo = rol === "encargado" || rol === "gerente";
+  const veTodo = rol === "encargado" || rol === "gerente" || rol === "dueno";
 
   const links = veTodo
     ? [
@@ -20,7 +31,8 @@ export default function Nav({ nombre, rol }: { nombre: string; rol: Rol }) {
         { href: "/entregar", label: "Cargar entrega" },
         { href: "/admin/lotes", label: "Lotes" },
         { href: "/admin/alimentos", label: "Alimentos" },
-        ...(rol === "encargado" ? [{ href: "/admin/usuarios", label: "Usuarios" }] : []),
+        ...(rol === "encargado" || rol === "dueno" ? [{ href: "/admin/usuarios", label: "Usuarios" }] : []),
+        ...(rol === "dueno" ? [{ href: "/admin/campos", label: "Campos" }] : []),
       ]
     : [{ href: "/", label: "Cargar entrega" }];
 
@@ -43,6 +55,13 @@ export default function Nav({ nombre, rol }: { nombre: string; rol: Rol }) {
     </span>
   );
 
+  const selectorCampo =
+    rol === "dueno" ? (
+      campos.length > 0 && campo ? <CampoSelector campos={campos} campoActualId={campo.id} /> : null
+    ) : campo ? (
+      <span className="rounded-lg bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">{campo.nombre}</span>
+    ) : null;
+
   return (
     <header className="relative border-b border-stone-200 bg-white">
       <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
@@ -59,6 +78,8 @@ export default function Nav({ nombre, rol }: { nombre: string; rol: Rol }) {
         </button>
 
         {logo}
+
+        <div className="hidden md:block">{selectorCampo}</div>
 
         {/* Nav horizontal: sólo en pantallas medianas/grandes */}
         <nav className="hidden flex-1 flex-wrap gap-1 md:flex">
@@ -97,6 +118,7 @@ export default function Nav({ nombre, rol }: { nombre: string; rol: Rol }) {
             aria-label="Cerrar menú"
           />
           <div className="absolute inset-x-0 top-full z-30 border-b border-stone-200 bg-white shadow-lg md:hidden">
+            {selectorCampo && <div className="border-b border-stone-100 px-4 py-3">{selectorCampo}</div>}
             <nav className="flex flex-col p-2">
               {links.map((link) => (
                 <Link

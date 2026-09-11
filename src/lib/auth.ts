@@ -31,18 +31,28 @@ export async function requireProfile(): Promise<{ userId: string; email: string;
   return { userId: user.id, email: user.email ?? "", profile: profile as Profile };
 }
 
-export async function requireEncargado() {
+/** Dueño: ve y administra todo, en todos los campos. */
+export async function requireDueno() {
   const datos = await requireProfile();
-  if (datos.profile.rol !== "encargado") {
+  if (datos.profile.rol !== "dueno") {
     redirect("/");
   }
   return datos;
 }
 
-/** Encargado (control total) o Gerente (sólo lectura en lotes/alimentos, ve toda la grilla). */
+/** Administrador de un campo, o Dueño (todos los campos). Para gestionar usuarios. */
+export async function requireGestionUsuarios() {
+  const datos = await requireProfile();
+  if (datos.profile.rol !== "encargado" && datos.profile.rol !== "dueno") {
+    redirect("/");
+  }
+  return datos;
+}
+
+/** Encargado/Gerente/Dueño: control total (encargado, dueño) o sólo lectura (gerente) en lotes/alimentos. */
 export async function requireEncargadoOGerente() {
   const datos = await requireProfile();
-  if (datos.profile.rol !== "encargado" && datos.profile.rol !== "gerente") {
+  if (!["encargado", "gerente", "dueno"].includes(datos.profile.rol)) {
     redirect("/");
   }
   return datos;

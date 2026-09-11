@@ -2,25 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { Campo } from "@/lib/types";
 
-interface Item {
-  id: string;
-  nombre: string;
-  activo: boolean;
-}
-
-interface Props {
-  tabla: "lotes" | "alimentos";
-  titulo: string;
-  /** Campo al que pertenecen (y al que se asigna lo que se agregue acá). */
-  campoId: string;
-  /** true = sólo puede ver la lista (rol Gerente); no agrega, edita, borra ni desactiva. */
-  soloLectura?: boolean;
-}
-
-/** CRUD simple y genérico para las tablas "lotes" y "alimentos" (mismo formato). */
-export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = false }: Props) {
-  const [items, setItems] = useState<Item[]>([]);
+export default function CamposAdmin() {
+  const [items, setItems] = useState<Campo[]>([]);
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,31 +15,30 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
   const [errorBorrado, setErrorBorrado] = useState<string | null>(null);
   const [borrando, setBorrando] = useState<string | null>(null);
 
-  const [editando, setEditando] = useState<Item | null>(null);
+  const [editando, setEditando] = useState<Campo | null>(null);
   const [nombreEditado, setNombreEditado] = useState("");
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
 
   async function recargar() {
     const supabase = createClient();
-    const { data, error } = await supabase.from(tabla).select("*").eq("campo_id", campoId).order("nombre");
+    const { data, error } = await supabase.from("campos").select("*").order("nombre");
     if (error) setError(error.message);
-    else setItems((data ?? []) as Item[]);
+    else setItems((data ?? []) as Campo[]);
     setCargando(false);
   }
 
   useEffect(() => {
     recargar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabla, campoId]);
+  }, []);
 
   async function agregar(e: React.FormEvent) {
     e.preventDefault();
     if (!nombreNuevo.trim()) return;
     const supabase = createClient();
-    const { error } = await supabase.from(tabla).insert({ nombre: nombreNuevo.trim(), campo_id: campoId });
+    const { error } = await supabase.from("campos").insert({ nombre: nombreNuevo.trim() });
     if (error) {
-      setError(error.message.includes("duplicate") ? "Ya existe uno con ese nombre." : error.message);
+      setError(error.message.includes("duplicate") ? "Ya existe un campo con ese nombre." : error.message);
       return;
     }
     setNombreNuevo("");
@@ -62,14 +46,14 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
     recargar();
   }
 
-  async function toggleActivo(item: Item) {
+  async function toggleActivo(item: Campo) {
     setMenuAbierto(null);
     const supabase = createClient();
-    await supabase.from(tabla).update({ activo: !item.activo }).eq("id", item.id);
+    await supabase.from("campos").update({ activo: !item.activo }).eq("id", item.id);
     recargar();
   }
 
-  function abrirEdicion(item: Item) {
+  function abrirEdicion(item: Campo) {
     setMenuAbierto(null);
     setErrorEdicion(null);
     setEditando(item);
@@ -84,14 +68,14 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
 
     const supabase = createClient();
     const { error } = await supabase
-      .from(tabla)
+      .from("campos")
       .update({ nombre: nombreEditado.trim() })
       .eq("id", editando.id);
 
     setGuardandoEdicion(false);
 
     if (error) {
-      setErrorEdicion(error.message.includes("duplicate") ? "Ya existe uno con ese nombre." : error.message);
+      setErrorEdicion(error.message.includes("duplicate") ? "Ya existe un campo con ese nombre." : error.message);
       return;
     }
 
@@ -99,20 +83,19 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
     recargar();
   }
 
-  async function borrar(item: Item) {
+  async function borrar(item: Campo) {
     setErrorBorrado(null);
     setBorrando(item.id);
     const supabase = createClient();
-    const { error } = await supabase.from(tabla).delete().eq("id", item.id);
+    const { error } = await supabase.from("campos").delete().eq("id", item.id);
     setBorrando(null);
     setConfirmandoBorrado(null);
     setMenuAbierto(null);
 
     if (error) {
-      // 23503 = violación de llave foránea: ya hay entregas que usan este lote/alimento.
       setErrorBorrado(
         error.code === "23503"
-          ? `No se puede borrar "${item.nombre}": ya se usó en alguna entrega. Desactivalo en cambio.`
+          ? `No se puede borrar "${item.nombre}": todavía tiene lotes, alimentos o usuarios cargados.`
           : error.message,
       );
       return;
@@ -120,25 +103,21 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
     recargar();
   }
 
-  const singular = tabla === "lotes" ? "el lote" : "el alimento";
-
   return (
     <div className="mx-auto max-w-lg">
-      <h1 className="mb-4 text-xl font-bold text-stone-900">{titulo}</h1>
+      <h1 className="mb-4 text-xl font-bold text-stone-900">Campos</h1>
 
-      {!soloLectura && (
-        <form onSubmit={agregar} className="mb-4 flex gap-2">
-          <input
-            value={nombreNuevo}
-            onChange={(e) => setNombreNuevo(e.target.value)}
-            placeholder="Nombre nuevo..."
-            className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-          />
-          <button type="submit" className="rounded-lg bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-800">
-            Agregar
-          </button>
-        </form>
-      )}
+      <form onSubmit={agregar} className="mb-4 flex gap-2">
+        <input
+          value={nombreNuevo}
+          onChange={(e) => setNombreNuevo(e.target.value)}
+          placeholder="Nombre del campo nuevo..."
+          className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+        />
+        <button type="submit" className="rounded-lg bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-800">
+          Agregar
+        </button>
+      </form>
 
       {error && <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       {errorBorrado && <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{errorBorrado}</p>}
@@ -147,7 +126,7 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
         {cargando ? (
           <p className="p-4 text-sm text-stone-400">Cargando...</p>
         ) : items.length === 0 ? (
-          <p className="p-4 text-sm text-stone-400">Todavía no hay nada cargado.</p>
+          <p className="p-4 text-sm text-stone-400">Todavía no hay ningún campo cargado.</p>
         ) : (
           <ul>
             {items.map((item) => (
@@ -155,7 +134,6 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
                 <div className="flex items-center justify-between">
                   <span className={item.activo ? "" : "opacity-40"}>{item.nombre}</span>
 
-                  {!soloLectura && (
                   <div className="relative">
                     <button
                       onClick={() => {
@@ -178,9 +156,7 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
                         <div className="absolute right-0 top-full z-20 w-40 rounded-lg bg-white py-1 text-left shadow-lg ring-1 ring-stone-200">
                           {confirmandoBorrado === item.id ? (
                             <div className="px-3 py-2">
-                              <p className="mb-2 text-xs text-stone-600">
-                                ¿Borrar {singular} para siempre?
-                              </p>
+                              <p className="mb-2 text-xs text-stone-600">¿Borrar este campo?</p>
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => setConfirmandoBorrado(null)}
@@ -223,19 +199,16 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
                       </>
                     )}
                   </div>
-                  )}
                 </div>
               </li>
             ))}
           </ul>
         )}
       </div>
-      {!soloLectura && (
       <p className="mt-2 text-xs text-stone-400">
-        Desactivar no borra el historial: sólo deja de aparecer como opción al cargar una entrega nueva.
-        Borrar es permanente y sólo se puede hacer si todavía no se usó en ninguna entrega.
+        Desactivar oculta el campo del selector, pero no borra nada. Borrar es permanente y sólo se
+        puede hacer si el campo todavía no tiene lotes, alimentos ni usuarios cargados.
       </p>
-      )}
 
       {editando && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
