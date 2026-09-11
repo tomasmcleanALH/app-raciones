@@ -302,6 +302,29 @@ export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: bool
     </button>
   );
 
+  const botonActualizar = (
+    <button
+      onClick={() => cargarEntregas()}
+      disabled={cargando}
+      title="Actualizar"
+      aria-label="Actualizar"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-300 text-stone-600 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className={`h-5 w-5 ${cargando ? "animate-spin" : ""}`}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M20 20v-5h-5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 9a7.5 7.5 0 0 1 13-3.5L20 8" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 15a7.5 7.5 0 0 1-13 3.5L4 16" />
+      </svg>
+    </button>
+  );
+
   const menuAcciones = (f: FilaGrilla) => (
     <>
       <button
@@ -354,7 +377,10 @@ export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: bool
       {/* Filtros — escritorio: barra fija, igual que siempre */}
       <div className="mb-4 hidden flex-wrap items-center gap-2 md:flex">
         {controlesFiltro}
-        <div className="ml-auto">{botonExportar}</div>
+        <div className="ml-auto flex gap-2">
+          {botonActualizar}
+          {botonExportar}
+        </div>
       </div>
 
       {/* Filtros — celular: acordeón desplegable, con el ícono de exportar al lado */}
@@ -368,6 +394,7 @@ export default function GrillaTable({ puedeEditar = true }: { puedeEditar?: bool
           </summary>
           <div className="flex flex-col gap-2 border-t border-stone-100 p-3">{controlesFiltro}</div>
         </details>
+        {botonActualizar}
         {botonExportar}
       </div>
 
