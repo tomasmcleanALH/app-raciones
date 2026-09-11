@@ -73,7 +73,6 @@ function LoginForm() {
 
           <div className="mb-8 text-center">
             <h1 className="text-2xl font-bold text-stone-900">Operaciones</h1>
-            <p className="mt-1 text-sm text-stone-500">Entregas de alimento a las recrías</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4 rounded-xl bg-white p-6 shadow-sm ring-1 ring-stone-200">
