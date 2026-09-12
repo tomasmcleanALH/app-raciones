@@ -270,16 +270,13 @@ export default function UsuariosAdmin({
             {usuarios.map((u) => (
               <li key={u.id} className="border-b border-stone-100 px-4 py-3.5 last:border-0">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-2">
                     <p className={`truncate font-medium ${u.activo ? "text-stone-900" : "text-stone-400 line-through"}`}>
                       {u.nombre}
                     </p>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{ETIQUETA_ROL[u.rol]}</span>
-                      {esDueno && (
-                        <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">{u.campo_nombre}</span>
-                      )}
-                    </div>
+                    {esDueno && (
+                      <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">{u.campo_nombre}</span>
+                    )}
                   </div>
                   {u.id !== miPropioId && (
                     <div className="flex shrink-0 items-center gap-2">

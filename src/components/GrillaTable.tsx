@@ -204,7 +204,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
       "Unidad": f.unidad,
       "Cargado por": f.cargado_por_nombre,
       "Observaciones": f.observaciones ?? "",
-      "Cargado el": new Date(f.created_at).toLocaleString("es-AR"),
+      "Cargado el": new Date(f.created_at).toLocaleString("es-AR", { hour12: false }),
     }));
 
     const hoja = XLSX.utils.json_to_sheet(datos);
@@ -469,7 +469,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
                     <p><span className="text-stone-500">Observaciones:</span> {f.observaciones}</p>
                   )}
                   <p className="pt-1 text-xs text-stone-400">
-                    Cargado el {new Date(f.created_at).toLocaleString("es-AR")}
+                    Cargado el {new Date(f.created_at).toLocaleString("es-AR", { hour12: false })}
                   </p>
                 </div>
               </div>
@@ -539,7 +539,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
                   <td className="px-4 py-2.5">{f.cargado_por_nombre}</td>
                   <td className="px-4 py-2.5 text-stone-500">{f.observaciones ?? ""}</td>
                   <td className="px-4 py-2.5 text-stone-400">
-                    {new Date(f.created_at).toLocaleString("es-AR")}
+                    {new Date(f.created_at).toLocaleString("es-AR", { hour12: false })}
                   </td>
                   {puedeEditar && (
                   <td className="relative px-2 py-2.5 text-right">

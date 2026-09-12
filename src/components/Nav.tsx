@@ -64,11 +64,11 @@ export default function Nav({
 
   return (
     <header className="relative border-b border-stone-200 bg-white">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-4">
+      <div className="mx-auto flex max-w-7xl flex-nowrap items-center gap-3 px-4 py-3">
         {/* Botón hamburguesa: sólo en celular */}
         <button
           onClick={() => setMenuAbierto((v) => !v)}
-          className="rounded-md p-1.5 text-stone-600 hover:bg-stone-100 md:hidden"
+          className="shrink-0 rounded-md p-1.5 text-stone-600 hover:bg-stone-100 md:hidden"
           aria-label="Abrir menú"
           aria-expanded={menuAbierto}
         >
@@ -77,17 +77,18 @@ export default function Nav({
           </svg>
         </button>
 
-        {logo}
+        <div className="shrink-0">{logo}</div>
 
-        <div className="hidden md:block">{selectorCampo}</div>
+        <div className="hidden shrink-0 md:block">{selectorCampo}</div>
 
-        {/* Nav horizontal: sólo en pantallas medianas/grandes */}
-        <nav className="hidden flex-1 flex-wrap gap-1.5 md:flex">
+        {/* Nav horizontal: sólo en pantallas medianas/grandes. Si no entran todos
+            los links, se desliza horizontalmente en vez de pasar a otra línea. */}
+        <nav className="hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto md:flex">
           {links.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className={`rounded-md px-3.5 py-2 text-sm font-medium ${
+              className={`shrink-0 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium ${
                 pathname === link.href
                   ? "bg-brand-100 text-brand-800"
                   : "text-stone-600 hover:bg-stone-100"
@@ -98,11 +99,11 @@ export default function Nav({
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-3 md:ml-0">
+        <div className="ml-auto flex shrink-0 items-center gap-3">
           <SyncStatusBadge />
           <div className="hidden items-center gap-2 text-sm text-stone-500 md:flex">
-            <span>{nombre}</span>
-            <button onClick={salir} className="text-stone-400 hover:text-stone-700" title="Cerrar sesión">
+            <span className="whitespace-nowrap">{nombre}</span>
+            <button onClick={salir} className="shrink-0 text-stone-400 hover:text-stone-700" title="Cerrar sesión">
               Salir
             </button>
           </div>
