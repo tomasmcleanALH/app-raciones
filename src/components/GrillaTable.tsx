@@ -120,8 +120,20 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
     cargarEntregas();
   }, [cargarEntregas]);
 
-  const totalCantidad = useMemo(() => filas.reduce((acc, f) => acc + Number(f.cantidad), 0), [filas]);
   const totalColumnas = puedeEditar ? 9 : 8;
+
+  /** Suma la cantidad entregada de cada alimento (agrupada también por unidad,
+   * por si el mismo alimento se cargó alguna vez con otra unidad). */
+  const resumenAlimentos = useMemo(() => {
+    const mapa = new Map<string, { alimento: string; unidad: string; total: number }>();
+    for (const f of filas) {
+      const clave = `${f.alimento_nombre}|${f.unidad}`;
+      const actual = mapa.get(clave);
+      if (actual) actual.total += Number(f.cantidad);
+      else mapa.set(clave, { alimento: f.alimento_nombre, unidad: f.unidad, total: Number(f.cantidad) });
+    }
+    return [...mapa.values()].sort((a, b) => a.alimento.localeCompare(b.alimento));
+  }, [filas]);
 
   function abrirEdicion(f: FilaGrilla) {
     setMenuAbierto(null);
@@ -377,8 +389,29 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
     </>
   );
 
+  const resumenAlimentosPanel = (
+    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
+      <h2 className="mb-3 text-sm font-semibold text-stone-700">Resumen por alimento</h2>
+      {filas.length === 0 ? (
+        <p className="text-sm text-stone-400">Sin entregas para resumir.</p>
+      ) : (
+        <ul className="space-y-2">
+          {resumenAlimentos.map((r) => (
+            <li key={`${r.alimento}|${r.unidad}`} className="flex items-start justify-between gap-3 text-sm">
+              <span className="text-stone-600">{r.alimento}</span>
+              <span className="shrink-0 font-medium text-stone-900">
+                {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
   return (
-    <div>
+    <div className="lg:flex lg:items-start lg:gap-6">
+    <div className="min-w-0 lg:flex-1">
       {/* Filtros — escritorio: barra fija, igual que siempre */}
       <div className="mb-4 hidden flex-wrap items-center gap-2 md:flex">
         {controlesFiltro}
@@ -474,10 +507,6 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
                 </div>
               </div>
             ))}
-
-            <div className="rounded-xl bg-stone-50 px-4 py-3 text-sm font-medium text-stone-700 shadow-sm ring-1 ring-stone-200">
-              Total ({filas.length} entregas): {totalCantidad.toFixed(2)}
-            </div>
           </>
         )}
       </div>
@@ -606,19 +635,13 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
               ))
             )}
           </tbody>
-          {filas.length > 0 && (
-            <tfoot>
-              <tr className="border-t border-stone-200 bg-stone-50 font-medium">
-                <td className="px-4 py-2.5" colSpan={4}>Total ({filas.length} entregas)</td>
-                <td className="px-4 py-2.5">{totalCantidad.toFixed(2)}</td>
-                <td className="px-4 py-2.5" colSpan={puedeEditar ? 4 : 3}></td>
-              </tr>
-            </tfoot>
-          )}
         </table>
       </div>
+    </div>
 
-      {editando && (
+    <div className="mt-4 lg:mt-0 lg:w-72 lg:shrink-0">{resumenAlimentosPanel}</div>
+
+    {editando && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
           <form
             onSubmit={guardarEdicion}
