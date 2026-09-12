@@ -64,7 +64,7 @@ export default function Nav({
 
   return (
     <header className="relative border-b border-stone-200 bg-white">
-      <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-4">
         {/* Botón hamburguesa: sólo en celular */}
         <button
           onClick={() => setMenuAbierto((v) => !v)}
@@ -82,12 +82,12 @@ export default function Nav({
         <div className="hidden md:block">{selectorCampo}</div>
 
         {/* Nav horizontal: sólo en pantallas medianas/grandes */}
-        <nav className="hidden flex-1 flex-wrap gap-1 md:flex">
+        <nav className="hidden flex-1 flex-wrap gap-1.5 md:flex">
           {links.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${
+              className={`rounded-md px-3.5 py-2 text-sm font-medium ${
                 pathname === link.href
                   ? "bg-brand-100 text-brand-800"
                   : "text-stone-600 hover:bg-stone-100"

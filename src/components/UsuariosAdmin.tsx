@@ -44,6 +44,7 @@ export default function UsuariosAdmin({
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
+  const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
   const [confirmandoBorrado, setConfirmandoBorrado] = useState<string | null>(null);
   const [errorBorrado, setErrorBorrado] = useState<string | null>(null);
   const [borrando, setBorrando] = useState<string | null>(null);
@@ -127,6 +128,7 @@ export default function UsuariosAdmin({
   }
 
   function abrirEdicion(u: Fila) {
+    setMenuAbierto(null);
     setErrorEdicion(null);
     setEditando(u);
     setNombreEdit(u.nombre);
@@ -260,29 +262,27 @@ export default function UsuariosAdmin({
 
       {errorBorrado && <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{errorBorrado}</p>}
 
-      <div className="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-stone-200">
+      <div className="overflow-visible rounded-xl bg-white shadow-sm ring-1 ring-stone-200">
         {cargando ? (
           <p className="p-4 text-sm text-stone-400">Cargando...</p>
         ) : (
           <ul>
             {usuarios.map((u) => (
-              <li key={u.id} className="border-b border-stone-100 px-4 py-3 last:border-0">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className={u.activo ? "" : "text-stone-400 line-through"}>{u.nombre}</span>
-                    <span className="ml-2 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{ETIQUETA_ROL[u.rol]}</span>
-                    {esDueno && (
-                      <span className="ml-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">{u.campo_nombre}</span>
-                    )}
+              <li key={u.id} className="border-b border-stone-100 px-4 py-3.5 last:border-0">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={`truncate font-medium ${u.activo ? "text-stone-900" : "text-stone-400 line-through"}`}>
+                      {u.nombre}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">{ETIQUETA_ROL[u.rol]}</span>
+                      {esDueno && (
+                        <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">{u.campo_nombre}</span>
+                      )}
+                    </div>
                   </div>
-                  {u.id !== miPropioId && confirmandoBorrado !== u.id && (
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <button
-                        onClick={() => abrirEdicion(u)}
-                        className="rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-600 hover:bg-stone-200"
-                      >
-                        Editar
-                      </button>
+                  {u.id !== miPropioId && (
+                    <div className="flex shrink-0 items-center gap-2">
                       {u.rol !== "dueno" && (
                         <select
                           value={u.rol}
@@ -294,49 +294,81 @@ export default function UsuariosAdmin({
                           ))}
                         </select>
                       )}
-                      <button
-                        onClick={() => cambiar(u.id, { activo: !u.activo })}
-                        className={`rounded-full px-3 py-1 text-xs font-medium ${
-                          u.activo ? "bg-stone-100 text-stone-600 hover:bg-stone-200" : "bg-emerald-100 text-emerald-800"
-                        }`}
-                      >
-                        {u.activo ? "Desactivar" : "Activar"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setErrorBorrado(null);
-                          setConfirmandoBorrado(u.id);
-                        }}
-                        className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100"
-                      >
-                        Borrar
-                      </button>
+
+                      <div className="relative">
+                        <button
+                          onClick={() => {
+                            setConfirmandoBorrado(null);
+                            setMenuAbierto(menuAbierto === u.id ? null : u.id);
+                          }}
+                          className="rounded px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                          aria-label="Más acciones"
+                        >
+                          ⋮
+                        </button>
+
+                        {menuAbierto === u.id && (
+                          <>
+                            <button
+                              className="fixed inset-0 z-10 cursor-default"
+                              onClick={() => setMenuAbierto(null)}
+                              aria-label="Cerrar menú"
+                            />
+                            <div className="absolute right-0 top-full z-20 w-44 rounded-lg bg-white py-1 text-left shadow-lg ring-1 ring-stone-200">
+                              {confirmandoBorrado === u.id ? (
+                                <div className="px-3 py-2">
+                                  <p className="mb-2 text-xs text-stone-600">¿Borrar para siempre?</p>
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => setConfirmandoBorrado(null)}
+                                      className="flex-1 rounded bg-stone-100 px-2 py-1 text-xs hover:bg-stone-200"
+                                    >
+                                      No
+                                    </button>
+                                    <button
+                                      onClick={() => borrar(u.id)}
+                                      disabled={borrando === u.id}
+                                      className="flex-1 rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-800 disabled:opacity-60"
+                                    >
+                                      {borrando === u.id ? "..." : "Sí"}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => abrirEdicion(u)}
+                                    className="block w-full px-3 py-2 text-left text-sm text-stone-700 hover:bg-stone-50"
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setMenuAbierto(null);
+                                      cambiar(u.id, { activo: !u.activo });
+                                    }}
+                                    className="block w-full px-3 py-2 text-left text-sm text-stone-700 hover:bg-stone-50"
+                                  >
+                                    {u.activo ? "Desactivar" : "Activar"}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setErrorBorrado(null);
+                                      setConfirmandoBorrado(u.id);
+                                    }}
+                                    className="block w-full px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+                                  >
+                                    Borrar
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
-
-                {confirmandoBorrado === u.id && (
-                  <div className="mt-2 flex items-center justify-between rounded-lg bg-red-50 px-3 py-2">
-                    <span className="text-xs text-red-800">
-                      ¿Borrar a &quot;{u.nombre}&quot; para siempre? No se puede deshacer.
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setConfirmandoBorrado(null)}
-                        className="rounded-full bg-white px-3 py-1 text-xs font-medium text-stone-600 hover:bg-stone-100"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        onClick={() => borrar(u.id)}
-                        disabled={borrando === u.id}
-                        className="rounded-full bg-red-700 px-3 py-1 text-xs font-medium text-white hover:bg-red-800 disabled:opacity-60"
-                      >
-                        {borrando === u.id ? "Borrando..." : "Sí, borrar"}
-                      </button>
-                    </div>
-                  </div>
-                )}
               </li>
             ))}
           </ul>
