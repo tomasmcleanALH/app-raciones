@@ -42,6 +42,7 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
   const [filtroHasta, setFiltroHasta] = useState("");
 
   const [menuAbierto, setMenuAbierto] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [confirmandoBorrado, setConfirmandoBorrado] = useState<string | null>(null);
   const [borrando, setBorrando] = useState(false);
   const [editando, setEditando] = useState<MovimientoEditable | null>(null);
@@ -116,6 +117,22 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
   }, [cargarMovimientos]);
 
   const totalColumnas = puedeEditar ? 9 : 8;
+
+  /** El menú "⋮" se posiciona con position:fixed (según el botón que lo abrió)
+   * en vez de absolute, para que no quede recortado por el scroll horizontal
+   * de la tabla (overflow-x-auto en el contenedor obliga a overflow-y:auto
+   * también, y eso recortaba el menú cuando había pocas filas). */
+  function abrirMenu(e: React.MouseEvent<HTMLButtonElement>, id: string) {
+    setConfirmandoBorrado(null);
+    if (menuAbierto === id) {
+      setMenuAbierto(null);
+      setMenuPos(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuAbierto(id);
+    setMenuPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - 160) });
+  }
 
   function abrirEdicion(f: FilaGrilla) {
     setMenuAbierto(null);
@@ -402,10 +419,7 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
                     {badgeTipo(f.tipo)}
                     {puedeEditar && (
                       <button
-                        onClick={() => {
-                          setConfirmandoBorrado(null);
-                          setMenuAbierto(menuAbierto === f.id ? null : f.id);
-                        }}
+                        onClick={(e) => abrirMenu(e, f.id)}
                         className="-mr-1 rounded px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
                         aria-label="Más acciones"
                       >
@@ -413,14 +427,17 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
                       </button>
                     )}
                   </div>
-                  {puedeEditar && menuAbierto === f.id && (
+                  {puedeEditar && menuAbierto === f.id && menuPos && (
                     <>
                       <button
                         className="fixed inset-0 z-10 cursor-default"
                         onClick={() => setMenuAbierto(null)}
                         aria-label="Cerrar menú"
                       />
-                      <div className="absolute right-2 top-10 z-20 w-40 rounded-lg bg-white py-1 text-left shadow-lg ring-1 ring-stone-200">
+                      <div
+                        style={{ position: "fixed", top: menuPos.top, left: menuPos.left }}
+                        className="z-20 w-40 rounded-lg bg-white py-1 text-left shadow-lg ring-1 ring-stone-200"
+                      >
                         {confirmandoBorrado === f.id ? (
                           <div className="px-3 py-2">
                             <p className="mb-2 text-xs text-stone-600">¿Borrar este movimiento?</p>
@@ -540,24 +557,24 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
                   {puedeEditar && (
                   <td className="relative px-2 py-2.5 text-right">
                     <button
-                      onClick={() => {
-                        setConfirmandoBorrado(null);
-                        setMenuAbierto(menuAbierto === f.id ? null : f.id);
-                      }}
+                      onClick={(e) => abrirMenu(e, f.id)}
                       className="rounded px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
                       aria-label="Más acciones"
                     >
                       ⋮
                     </button>
 
-                    {menuAbierto === f.id && (
+                    {menuAbierto === f.id && menuPos && (
                       <>
                         <button
                           className="fixed inset-0 z-10 cursor-default"
                           onClick={() => setMenuAbierto(null)}
                           aria-label="Cerrar menú"
                         />
-                        <div className="absolute right-2 top-full z-20 w-40 rounded-lg bg-white py-1 text-left shadow-lg ring-1 ring-stone-200">
+                        <div
+                          style={{ position: "fixed", top: menuPos.top, left: menuPos.left }}
+                          className="z-20 w-40 rounded-lg bg-white py-1 text-left shadow-lg ring-1 ring-stone-200"
+                        >
                           {confirmandoBorrado === f.id ? (
                             <div className="px-3 py-2">
                               <p className="mb-2 text-xs text-stone-600">¿Borrar este movimiento?</p>
