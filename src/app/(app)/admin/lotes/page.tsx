@@ -2,13 +2,10 @@ import { redirect } from "next/navigation";
 import CatalogoAdmin from "@/components/CatalogoAdmin";
 import { requireEncargadoOGerente } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
-import { obtenerModulosUsuario } from "@/lib/modulos";
+import { obtenerModulosEfectivos } from "@/lib/modulos";
 
 export default async function LotesAdminPage() {
   const { userId, profile } = await requireEncargadoOGerente();
-  const modulos = await obtenerModulosUsuario(userId, profile.rol);
-  if (!modulos.includes("alimentos")) redirect("/");
-
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
   if (!campo) {
@@ -20,6 +17,9 @@ export default async function LotesAdminPage() {
       </p>
     );
   }
+
+  const modulos = await obtenerModulosEfectivos(userId, profile.rol, campo.id);
+  if (!modulos.includes("alimentos")) redirect("/");
 
   return (
     <CatalogoAdmin

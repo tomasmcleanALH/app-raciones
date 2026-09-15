@@ -4,8 +4,12 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Campo } from "@/lib/types";
 
+interface Fila extends Campo {
+  materialesHabilitado: boolean;
+}
+
 export default function CamposAdmin() {
-  const [items, setItems] = useState<Campo[]>([]);
+  const [items, setItems] = useState<Fila[]>([]);
   const [nombreNuevo, setNombreNuevo] = useState("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,9 +26,15 @@ export default function CamposAdmin() {
 
   async function recargar() {
     const supabase = createClient();
-    const { data, error } = await supabase.from("campos").select("*").order("nombre");
+    const [{ data, error }, { data: modulos }] = await Promise.all([
+      supabase.from("campos").select("*").order("nombre"),
+      supabase.from("campo_modulos").select("campo_id, modulo").eq("modulo", "materiales"),
+    ]);
     if (error) setError(error.message);
-    else setItems((data ?? []) as Campo[]);
+    else {
+      const conMateriales = new Set((modulos ?? []).map((m: any) => m.campo_id));
+      setItems(((data ?? []) as Campo[]).map((c) => ({ ...c, materialesHabilitado: conMateriales.has(c.id) })));
+    }
     setCargando(false);
   }
 
@@ -36,24 +46,37 @@ export default function CamposAdmin() {
     e.preventDefault();
     if (!nombreNuevo.trim()) return;
     const supabase = createClient();
-    const { error } = await supabase.from("campos").insert({ nombre: nombreNuevo.trim() });
+    const { data, error } = await supabase.from("campos").insert({ nombre: nombreNuevo.trim() }).select().single();
     if (error) {
       setError(error.message.includes("duplicate") ? "Ya existe un campo con ese nombre." : error.message);
       return;
     }
+    // Todo campo nuevo arranca con Alimentos habilitado (el comportamiento de siempre);
+    // Materiales se prende aparte, por campo, con el interruptor de la lista.
+    await supabase.from("campo_modulos").insert({ campo_id: data.id, modulo: "alimentos" });
     setNombreNuevo("");
     setError(null);
     recargar();
   }
 
-  async function toggleActivo(item: Campo) {
+  async function toggleActivo(item: Fila) {
     setMenuAbierto(null);
     const supabase = createClient();
     await supabase.from("campos").update({ activo: !item.activo }).eq("id", item.id);
     recargar();
   }
 
-  function abrirEdicion(item: Campo) {
+  async function toggleMateriales(item: Fila) {
+    const supabase = createClient();
+    if (item.materialesHabilitado) {
+      await supabase.from("campo_modulos").delete().eq("campo_id", item.id).eq("modulo", "materiales");
+    } else {
+      await supabase.from("campo_modulos").insert({ campo_id: item.id, modulo: "materiales" });
+    }
+    recargar();
+  }
+
+  function abrirEdicion(item: Fila) {
     setMenuAbierto(null);
     setErrorEdicion(null);
     setEditando(item);
@@ -131,8 +154,19 @@ export default function CamposAdmin() {
           <ul>
             {items.map((item) => (
               <li key={item.id} className="border-b border-stone-100 px-4 py-3 last:border-0">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <span className={item.activo ? "" : "opacity-40"}>{item.nombre}</span>
+
+                  <div className="flex shrink-0 items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-xs text-stone-500">
+                      <input
+                        type="checkbox"
+                        checked={item.materialesHabilitado}
+                        onChange={() => toggleMateriales(item)}
+                        className="h-3.5 w-3.5 rounded border-stone-300 accent-brand-700"
+                      />
+                      Stock de materiales
+                    </label>
 
                   <div className="relative">
                     <button
@@ -198,6 +232,7 @@ export default function CamposAdmin() {
                         </div>
                       </>
                     )}
+                  </div>
                   </div>
                 </div>
               </li>

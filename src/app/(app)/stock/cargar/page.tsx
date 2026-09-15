@@ -3,13 +3,10 @@ import MovimientoForm from "@/components/MovimientoForm";
 import UltimasMovimientos from "@/components/UltimasMovimientos";
 import { requireProfile } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
-import { obtenerModulosUsuario } from "@/lib/modulos";
+import { obtenerModulosEfectivos } from "@/lib/modulos";
 
 export default async function CargarMovimientoPage() {
   const { userId, profile } = await requireProfile();
-  const modulos = await obtenerModulosUsuario(userId, profile.rol);
-  if (!modulos.includes("materiales")) redirect("/");
-
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
   if (!campo) {
@@ -21,6 +18,9 @@ export default async function CargarMovimientoPage() {
       </p>
     );
   }
+
+  const modulos = await obtenerModulosEfectivos(userId, profile.rol, campo.id);
+  if (!modulos.includes("materiales")) redirect("/");
 
   return (
     <div className="mx-auto max-w-md">

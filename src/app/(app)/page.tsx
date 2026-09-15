@@ -4,21 +4,10 @@ import GrillaTable from "@/components/GrillaTable";
 import UltimasEntregas from "@/components/UltimasEntregas";
 import { requireProfile } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
-import { obtenerModulosUsuario } from "@/lib/modulos";
+import { obtenerModulosEfectivos } from "@/lib/modulos";
 
 export default async function HomePage() {
   const { userId, profile } = await requireProfile();
-  const modulos = await obtenerModulosUsuario(userId, profile.rol);
-
-  if (!modulos.includes("alimentos")) {
-    if (modulos.includes("materiales")) redirect("/stock");
-    return (
-      <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
-        Todavía no tenés acceso a ningún módulo. Hablá con el Dueño.
-      </p>
-    );
-  }
-
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
   if (!campo) {
@@ -27,6 +16,17 @@ export default async function HomePage() {
         {profile.rol === "dueno"
           ? "Todavía no creaste ningún campo. Andá a Campos para crear el primero."
           : "Todavía no te asignaron a ningún campo. Hablá con el administrador."}
+      </p>
+    );
+  }
+
+  const modulos = await obtenerModulosEfectivos(userId, profile.rol, campo.id);
+
+  if (!modulos.includes("alimentos")) {
+    if (modulos.includes("materiales")) redirect("/stock");
+    return (
+      <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+        Todavía no tenés acceso a ningún módulo en este campo. Hablá con el Dueño.
       </p>
     );
   }

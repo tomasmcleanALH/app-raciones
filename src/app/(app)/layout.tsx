@@ -1,12 +1,12 @@
 import Nav from "@/components/Nav";
 import { requireProfile } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
-import { obtenerModulosUsuario } from "@/lib/modulos";
+import { obtenerModulosEfectivos } from "@/lib/modulos";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { userId, profile } = await requireProfile();
   const { campo, campos } = await obtenerCampoActual(userId, profile.rol);
-  const modulos = await obtenerModulosUsuario(userId, profile.rol);
+  const modulos = await obtenerModulosEfectivos(userId, profile.rol, campo?.id ?? null);
 
   return (
     <div className="flex min-h-screen flex-1 flex-col">
