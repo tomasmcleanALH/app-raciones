@@ -42,3 +42,17 @@ export async function obtenerCampoActual(
   const elegido = lista.find((c) => c.id === elegidoId && c.activo);
   return { campo: elegido ?? lista.find((c) => c.activo) ?? lista[0], campos: lista };
 }
+
+/**
+ * ¿Hace falta mostrarle a esta persona la pantalla de elegir campo? Sólo
+ * cuando pertenece a más de uno Y todavía no eligió ninguno en esta sesión
+ * (o el que había elegido ya no es válido). El resto de la app sigue
+ * funcionando con el campo "de por defecto" que devuelve obtenerCampoActual;
+ * esto es sólo para decidir si mostrar la pantalla de elección o no.
+ */
+export async function requiereElegirCampo(campos: Campo[]): Promise<boolean> {
+  if (campos.length <= 1) return false;
+  const cookieStore = await cookies();
+  const elegidoId = cookieStore.get(COOKIE_CAMPO_ACTUAL)?.value;
+  return !campos.some((c) => c.id === elegidoId && c.activo);
+}

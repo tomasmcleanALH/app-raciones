@@ -1,14 +1,18 @@
 import { redirect } from "next/navigation";
-import EntregaForm from "@/components/EntregaForm";
-import GrillaTable from "@/components/GrillaTable";
-import UltimasEntregas from "@/components/UltimasEntregas";
 import { requireProfile } from "@/lib/auth";
-import { obtenerCampoActual } from "@/lib/campo";
+import { obtenerCampoActual, requiereElegirCampo } from "@/lib/campo";
 import { obtenerModulosEfectivos } from "@/lib/modulos";
 
+/**
+ * "/" no es una pantalla en sí: resuelve Ingreso → Campo → Módulo y
+ * redirige a donde corresponda (o muestra la pantalla de elegir cuando
+ * hay más de una opción en algún paso).
+ */
 export default async function HomePage() {
   const { userId, profile } = await requireProfile();
-  const { campo } = await obtenerCampoActual(userId, profile.rol);
+  const { campo, campos } = await obtenerCampoActual(userId, profile.rol);
+
+  if (await requiereElegirCampo(campos)) redirect("/elegir-campo");
 
   if (!campo) {
     return (
@@ -22,8 +26,7 @@ export default async function HomePage() {
 
   const modulos = await obtenerModulosEfectivos(userId, profile.rol, campo.id);
 
-  if (!modulos.includes("alimentos")) {
-    if (modulos.includes("materiales")) redirect("/stock");
+  if (modulos.length === 0) {
     return (
       <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
         Todavía no tenés acceso a ningún módulo en este campo. Hablá con el Dueño.
@@ -31,20 +34,7 @@ export default async function HomePage() {
     );
   }
 
-  if (profile.rol === "encargado" || profile.rol === "gerente" || profile.rol === "dueno") {
-    return (
-      <div>
-        <h1 className="mb-4 text-xl font-bold text-stone-900">Todas las entregas</h1>
-        <GrillaTable campoId={campo.id} puedeEditar={profile.rol === "encargado" || profile.rol === "dueno"} />
-      </div>
-    );
-  }
+  if (modulos.length > 1) redirect("/elegir-modulo");
 
-  return (
-    <div className="mx-auto max-w-md">
-      <h1 className="mb-4 text-xl font-bold text-stone-900">Cargar entrega</h1>
-      <EntregaForm userId={userId} campoId={campo.id} />
-      <UltimasEntregas userId={userId} campoId={campo.id} />
-    </div>
-  );
+  redirect(modulos[0] === "alimentos" ? "/alimentos" : "/stock");
 }
