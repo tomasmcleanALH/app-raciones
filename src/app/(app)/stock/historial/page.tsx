@@ -1,12 +1,10 @@
 import { redirect } from "next/navigation";
-import MovimientoForm from "@/components/MovimientoForm";
-import StockDisponibleTable from "@/components/StockDisponibleTable";
-import UltimasMovimientos from "@/components/UltimasMovimientos";
+import MovimientosStockTable from "@/components/MovimientosStockTable";
 import { requireProfile } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
 import { obtenerModulosEfectivos } from "@/lib/modulos";
 
-export default async function StockPage() {
+export default async function HistorialMovimientosPage() {
   const { userId, profile } = await requireProfile();
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
@@ -23,20 +21,14 @@ export default async function StockPage() {
   const modulos = await obtenerModulosEfectivos(userId, profile.rol, campo.id);
   if (!modulos.includes("materiales")) redirect("/");
 
-  if (profile.rol === "encargado" || profile.rol === "gerente" || profile.rol === "dueno") {
-    return (
-      <div>
-        <h1 className="mb-4 text-xl font-bold text-stone-900">Stock de materiales</h1>
-        <StockDisponibleTable campoId={campo.id} />
-      </div>
-    );
-  }
+  // Igual que la Grilla de entregas: sólo lo ven los roles de gestión, no
+  // el que sólo carga movimientos (para eso está "Cargar movimiento").
+  if (!["encargado", "gerente", "dueno"].includes(profile.rol)) redirect("/stock");
 
   return (
-    <div className="mx-auto max-w-md">
-      <h1 className="mb-4 text-xl font-bold text-stone-900">Cargar movimiento de stock</h1>
-      <MovimientoForm userId={userId} campoId={campo.id} />
-      <UltimasMovimientos userId={userId} />
+    <div>
+      <h1 className="mb-4 text-xl font-bold text-stone-900">Historial de movimientos</h1>
+      <MovimientosStockTable campoId={campo.id} puedeEditar={profile.rol === "encargado" || profile.rol === "dueno"} />
     </div>
   );
 }

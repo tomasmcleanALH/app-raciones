@@ -43,6 +43,7 @@ export default function Nav({
     : veTodo
       ? [
           { href: "/stock", label: "Stock" },
+          { href: "/stock/historial", label: "Historial de movimientos" },
           { href: "/stock/cargar", label: "Cargar movimiento" },
           { href: "/admin/materiales", label: "Materiales" },
         ]

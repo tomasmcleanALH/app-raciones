@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
 import type { Material, Profile, TipoMovimiento } from "@/lib/types";
@@ -28,25 +28,12 @@ interface MovimientoEditable {
   observaciones: string;
 }
 
-interface FilaMovimientoParaStock {
-  material_id: string;
-  material_nombre: string;
-  tipo: TipoMovimiento;
-  cantidad: number;
-  unidad: string;
-}
-
-export default function StockGrillaTable({ campoId, puedeEditar = true }: { campoId: string; puedeEditar?: boolean }) {
+export default function MovimientosStockTable({ campoId, puedeEditar = true }: { campoId: string; puedeEditar?: boolean }) {
   const [filas, setFilas] = useState<FilaGrilla[]>([]);
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [usuarios, setUsuarios] = useState<Profile[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Stock disponible: se calcula aparte, siempre sobre TODOS los movimientos
-  // del campo (sin los filtros de abajo), para que sea confiable.
-  const [movimientosParaStock, setMovimientosParaStock] = useState<FilaMovimientoParaStock[]>([]);
-  const [cargandoStock, setCargandoStock] = useState(true);
 
   const [filtroMaterial, setFiltroMaterial] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
@@ -77,30 +64,6 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
       setUsuarios(((u.data ?? []) as Profile[]).sort((a, b) => a.nombre.localeCompare(b.nombre)));
     });
   }, [campoId]);
-
-  const cargarStockDisponible = useCallback(async () => {
-    setCargandoStock(true);
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("movimientos_stock")
-      .select("material_id, tipo, cantidad, unidad, materiales!inner(nombre, campo_id)")
-      .eq("materiales.campo_id", campoId);
-
-    setMovimientosParaStock(
-      (data ?? []).map((m: any) => ({
-        material_id: m.material_id,
-        material_nombre: m.materiales?.nombre ?? "—",
-        tipo: m.tipo,
-        cantidad: m.cantidad,
-        unidad: m.unidad,
-      })),
-    );
-    setCargandoStock(false);
-  }, [campoId]);
-
-  useEffect(() => {
-    cargarStockDisponible();
-  }, [cargarStockDisponible]);
 
   const cargarMovimientos = useCallback(async () => {
     setCargando(true);
@@ -152,26 +115,7 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     cargarMovimientos();
   }, [cargarMovimientos]);
 
-  function actualizarTodo() {
-    cargarMovimientos();
-    cargarStockDisponible();
-  }
-
   const totalColumnas = puedeEditar ? 9 : 8;
-
-  /** Stock disponible = entradas menos salidas, agrupado por material
-   * (y por unidad, por si el mismo material se cargó alguna vez con otra). */
-  const stockDisponible = useMemo(() => {
-    const mapa = new Map<string, { material: string; unidad: string; total: number }>();
-    for (const m of movimientosParaStock) {
-      const clave = `${m.material_nombre}|${m.unidad}`;
-      const signo = m.tipo === "entrada" ? 1 : -1;
-      const actual = mapa.get(clave);
-      if (actual) actual.total += signo * Number(m.cantidad);
-      else mapa.set(clave, { material: m.material_nombre, unidad: m.unidad, total: signo * Number(m.cantidad) });
-    }
-    return [...mapa.values()].sort((a, b) => a.material.localeCompare(b.material));
-  }, [movimientosParaStock]);
 
   function abrirEdicion(f: FilaGrilla) {
     setMenuAbierto(null);
@@ -214,7 +158,7 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     }
 
     setEditando(null);
-    actualizarTodo();
+    cargarMovimientos();
   }
 
   async function borrarMovimiento(id: string) {
@@ -224,7 +168,7 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     setBorrando(false);
     setConfirmandoBorrado(null);
     setMenuAbierto(null);
-    actualizarTodo();
+    cargarMovimientos();
   }
 
   function toggleSeleccionado(id: string) {
@@ -265,7 +209,7 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     XLSX.utils.book_append_sheet(libro, hoja, "Movimientos");
 
     const hoy = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(libro, `stock-materiales-${hoy}.xlsx`);
+    XLSX.writeFile(libro, `historial-movimientos-${hoy}.xlsx`);
   }
 
   const hayFiltrosActivos = !!(filtroMaterial || filtroTipo || filtroUsuario || filtroDesde || filtroHasta);
@@ -358,15 +302,15 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
 
   const botonActualizar = (
     <button
-      onClick={actualizarTodo}
-      disabled={cargando || cargandoStock}
+      onClick={() => cargarMovimientos()}
+      disabled={cargando}
       title="Actualizar"
       aria-label="Actualizar"
       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-300 text-stone-600 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <svg
         viewBox="0 0 24 24"
-        className={`h-5 w-5 ${cargando || cargandoStock ? "animate-spin" : ""}`}
+        className={`h-5 w-5 ${cargando ? "animate-spin" : ""}`}
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
@@ -391,29 +335,6 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
 
   return (
     <div>
-      {/* Stock disponible: lo primero y lo más importante de esta pantalla. */}
-      <div className="mb-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
-        <h2 className="mb-3 text-sm font-semibold text-stone-700">Stock disponible</h2>
-        {cargandoStock ? (
-          <p className="text-sm text-stone-400">Cargando...</p>
-        ) : stockDisponible.length === 0 ? (
-          <p className="text-sm text-stone-400">Todavía no hay movimientos cargados.</p>
-        ) : (
-          <ul className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-            {stockDisponible.map((r) => (
-              <li key={`${r.material}|${r.unidad}`} className="flex items-baseline justify-between gap-3 border-b border-stone-100 py-1.5 text-sm">
-                <span className="text-stone-600">{r.material}</span>
-                <span className="shrink-0 font-semibold text-stone-900">
-                  {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <h2 className="mb-3 text-sm font-semibold text-stone-700">Movimientos</h2>
-
       {/* Filtros — escritorio: barra fija, igual que en la grilla de alimentos */}
       <div className="mb-4 hidden flex-wrap items-center gap-2 md:flex">
         {controlesFiltro}
