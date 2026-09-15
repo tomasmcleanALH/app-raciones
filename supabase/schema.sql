@@ -120,19 +120,10 @@ create index if not exists entregas_cargado_por_idx on public.entregas (cargado_
 
 -- ------------------------------------------------------------
 -- Módulo aparte: Stock de materiales (rollos de alambre, postes,
--- lo que se necesite) por isleta. No se mezcla con Alimentos:
--- cada usuario necesita el módulo "materiales" (ver
--- usuarios_modulos más arriba) para ver o tocar esto.
+-- lo que se necesite). No se mezcla con Alimentos: cada usuario
+-- necesita el módulo "materiales" (ver usuarios_modulos más
+-- arriba) para ver o tocar esto.
 -- ------------------------------------------------------------
-create table if not exists public.isletas (
-  id uuid primary key default gen_random_uuid(),
-  campo_id uuid not null references public.campos (id),
-  nombre text not null,
-  activo boolean not null default true,
-  created_at timestamptz not null default now(),
-  unique (campo_id, nombre)
-);
-
 create table if not exists public.materiales (
   id uuid primary key default gen_random_uuid(),
   campo_id uuid not null references public.campos (id),
@@ -142,13 +133,13 @@ create table if not exists public.materiales (
   unique (campo_id, nombre)
 );
 
--- Entrada (ingresó material a la isleta) o salida (se retiró/consumió).
--- El stock actual de cada isleta+material se calcula sumando entradas
--- y restando salidas.
+-- Entrada (ingresó material) o salida (se retiró/consumió). El stock
+-- disponible de cada material se calcula sumando entradas y
+-- restando salidas (no tiene un destino/ubicación propio, a
+-- diferencia del lote en Alimentos).
 create table if not exists public.movimientos_stock (
   id uuid primary key default gen_random_uuid(),
   fecha date not null,
-  isleta_id uuid not null references public.isletas (id),
   material_id uuid not null references public.materiales (id),
   tipo text not null check (tipo in ('entrada', 'salida')),
   cantidad numeric(10, 2) not null check (cantidad > 0),
@@ -273,7 +264,6 @@ alter table public.campo_modulos enable row level security;
 alter table public.lotes enable row level security;
 alter table public.alimentos enable row level security;
 alter table public.entregas enable row level security;
-alter table public.isletas enable row level security;
 alter table public.materiales enable row level security;
 alter table public.movimientos_stock enable row level security;
 
@@ -436,33 +426,9 @@ create policy entregas_delete on public.entregas
       and public.campo_tiene_modulo(l.campo_id, 'alimentos')
   ));
 
--- isletas: todos los del campo Y del módulo Materiales leen (el
+-- materiales: todos los del campo Y del módulo Materiales leen (el
 -- usuario Y el campo tienen que tener Materiales habilitado); sólo
 -- el admin de ese campo (con módulo Materiales) modifica.
-drop policy if exists isletas_select on public.isletas;
-create policy isletas_select on public.isletas
-  for select to authenticated
-  using (
-    public.tiene_acceso_a_campo(campo_id)
-    and public.tiene_acceso_a_modulo('materiales')
-    and public.campo_tiene_modulo(campo_id, 'materiales')
-  );
-
-drop policy if exists isletas_modificar on public.isletas;
-create policy isletas_modificar on public.isletas
-  for all to authenticated
-  using (
-    public.es_admin_de_campo(campo_id)
-    and public.tiene_acceso_a_modulo('materiales')
-    and public.campo_tiene_modulo(campo_id, 'materiales')
-  )
-  with check (
-    public.es_admin_de_campo(campo_id)
-    and public.tiene_acceso_a_modulo('materiales')
-    and public.campo_tiene_modulo(campo_id, 'materiales')
-  );
-
--- materiales: mismo esquema que isletas
 drop policy if exists materiales_select on public.materiales;
 create policy materiales_select on public.materiales
   for select to authenticated
@@ -487,7 +453,7 @@ create policy materiales_modificar on public.materiales
   );
 
 -- movimientos_stock: cada usuario ve/crea los suyos; encargado/gerente/
--- dueño del campo de la isleta (con módulo Materiales, y ese campo
+-- dueño del campo del material (con módulo Materiales, y ese campo
 -- con Materiales habilitado) ven todos; sólo el admin de ese campo edita/borra
 drop policy if exists movimientos_stock_select on public.movimientos_stock;
 create policy movimientos_stock_select on public.movimientos_stock
@@ -495,11 +461,11 @@ create policy movimientos_stock_select on public.movimientos_stock
   using (
     cargado_por = auth.uid()
     or exists (
-      select 1 from public.isletas i
-      where i.id = movimientos_stock.isleta_id
-        and public.puede_ver_todo_el_campo(i.campo_id)
+      select 1 from public.materiales m
+      where m.id = movimientos_stock.material_id
+        and public.puede_ver_todo_el_campo(m.campo_id)
         and public.tiene_acceso_a_modulo('materiales')
-        and public.campo_tiene_modulo(i.campo_id, 'materiales')
+        and public.campo_tiene_modulo(m.campo_id, 'materiales')
     )
   );
 
@@ -511,8 +477,8 @@ create policy movimientos_stock_insert on public.movimientos_stock
     and exists (select 1 from public.profiles where id = auth.uid() and activo = true)
     and public.tiene_acceso_a_modulo('materiales')
     and exists (
-      select 1 from public.isletas i
-      where i.id = isleta_id and public.tiene_acceso_a_campo(i.campo_id) and public.campo_tiene_modulo(i.campo_id, 'materiales')
+      select 1 from public.materiales m
+      where m.id = material_id and public.tiene_acceso_a_campo(m.campo_id) and public.campo_tiene_modulo(m.campo_id, 'materiales')
     )
   );
 
@@ -520,23 +486,23 @@ drop policy if exists movimientos_stock_update on public.movimientos_stock;
 create policy movimientos_stock_update on public.movimientos_stock
   for update to authenticated
   using (exists (
-    select 1 from public.isletas i where i.id = movimientos_stock.isleta_id
-      and public.es_admin_de_campo(i.campo_id) and public.tiene_acceso_a_modulo('materiales')
-      and public.campo_tiene_modulo(i.campo_id, 'materiales')
+    select 1 from public.materiales m where m.id = movimientos_stock.material_id
+      and public.es_admin_de_campo(m.campo_id) and public.tiene_acceso_a_modulo('materiales')
+      and public.campo_tiene_modulo(m.campo_id, 'materiales')
   ))
   with check (exists (
-    select 1 from public.isletas i where i.id = isleta_id
-      and public.es_admin_de_campo(i.campo_id) and public.tiene_acceso_a_modulo('materiales')
-      and public.campo_tiene_modulo(i.campo_id, 'materiales')
+    select 1 from public.materiales m where m.id = material_id
+      and public.es_admin_de_campo(m.campo_id) and public.tiene_acceso_a_modulo('materiales')
+      and public.campo_tiene_modulo(m.campo_id, 'materiales')
   ));
 
 drop policy if exists movimientos_stock_delete on public.movimientos_stock;
 create policy movimientos_stock_delete on public.movimientos_stock
   for delete to authenticated
   using (exists (
-    select 1 from public.isletas i where i.id = movimientos_stock.isleta_id
-      and public.es_admin_de_campo(i.campo_id) and public.tiene_acceso_a_modulo('materiales')
-      and public.campo_tiene_modulo(i.campo_id, 'materiales')
+    select 1 from public.materiales m where m.id = movimientos_stock.material_id
+      and public.es_admin_de_campo(m.campo_id) and public.tiene_acceso_a_modulo('materiales')
+      and public.campo_tiene_modulo(m.campo_id, 'materiales')
   ));
 
 -- ------------------------------------------------------------

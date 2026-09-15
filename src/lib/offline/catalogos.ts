@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import type { Alimento, Isleta, Lote, Material } from "@/lib/types";
+import type { Alimento, Lote, Material } from "@/lib/types";
 
 async function conCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
   try {
@@ -40,21 +40,6 @@ export async function getAlimentosActivos(campoId: string): Promise<Alimento[]> 
       .order("nombre");
     if (error) throw error;
     return data as Alimento[];
-  });
-}
-
-/** Isletas activas del campo (módulo Stock de materiales). */
-export async function getIsletasActivas(campoId: string): Promise<Isleta[]> {
-  return conCache(`app-raciones:cache:isletas:${campoId}`, async () => {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("isletas")
-      .select("*")
-      .eq("campo_id", campoId)
-      .eq("activo", true)
-      .order("nombre");
-    if (error) throw error;
-    return data as Isleta[];
   });
 }
 

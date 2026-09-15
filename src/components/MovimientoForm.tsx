@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { getIsletasActivas, getMaterialesActivos } from "@/lib/offline/catalogos";
-import type { Isleta, Material, TipoMovimiento } from "@/lib/types";
+import { getMaterialesActivos } from "@/lib/offline/catalogos";
+import type { Material, TipoMovimiento } from "@/lib/types";
 
 function hoyISO() {
   const d = new Date();
@@ -12,13 +12,11 @@ function hoyISO() {
 }
 
 export default function MovimientoForm({ userId, campoId }: { userId: string; campoId: string }) {
-  const [isletas, setIsletas] = useState<Isleta[]>([]);
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
 
   const [fecha, setFecha] = useState(hoyISO());
   const [tipo, setTipo] = useState<TipoMovimiento>("entrada");
-  const [isletaId, setIsletaId] = useState("");
   const [materialId, setMaterialId] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState("unidades");
@@ -29,13 +27,10 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
   const [revisando, setRevisando] = useState(false);
 
   useEffect(() => {
-    Promise.all([getIsletasActivas(campoId), getMaterialesActivos(campoId)])
-      .then(([i, m]) => {
-        setIsletas(i);
-        setMateriales(m);
-      })
+    getMaterialesActivos(campoId)
+      .then(setMateriales)
       .catch(() => {
-        setMensaje({ tipo: "error", texto: "No se pudieron cargar las isletas/materiales. Volvé a intentar." });
+        setMensaje({ tipo: "error", texto: "No se pudieron cargar los materiales. Volvé a intentar." });
       })
       .finally(() => setCargandoCatalogos(false));
   }, [campoId]);
@@ -49,7 +44,7 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
   function handlePasarARevision(e: React.FormEvent) {
     e.preventDefault();
     setMensaje(null);
-    if (!isletaId || !materialId || !cantidad) return;
+    if (!materialId || !cantidad) return;
     setRevisando(true);
   }
 
@@ -60,7 +55,6 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
     const supabase = createClient();
     const { error } = await supabase.from("movimientos_stock").insert({
       fecha,
-      isleta_id: isletaId,
       material_id: materialId,
       tipo,
       cantidad: Number(cantidad),
@@ -84,18 +78,17 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
     return <p className="text-sm text-stone-500">Cargando...</p>;
   }
 
-  if (isletas.length === 0 || materiales.length === 0) {
+  if (materiales.length === 0) {
     return (
       <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
-        Todavía no hay isletas o materiales cargados. Pedile al administrador que los cree en
-        Administración antes de registrar movimientos.
+        Todavía no hay materiales cargados. Pedile al administrador que los cree en Administración
+        antes de registrar movimientos.
       </p>
     );
   }
 
   if (revisando) {
     const nombreMaterial = materiales.find((m) => m.id === materialId)?.nombre ?? "—";
-    const nombreIsleta = isletas.find((i) => i.id === isletaId)?.nombre ?? "—";
 
     return (
       <div className="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
@@ -106,7 +99,6 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
             ["Fecha", fecha],
             ["Tipo", tipo === "entrada" ? "Entrada" : "Salida"],
             ["Material", nombreMaterial],
-            ["Isleta", nombreIsleta],
             ["Cantidad", `${cantidad} ${unidad}`],
             ["Observaciones", observaciones.trim() || "—"],
           ].map(([label, valor]) => (
@@ -201,21 +193,6 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
           <option value="" disabled>Elegir...</option>
           {materiales.map((m) => (
             <option key={m.id} value={m.id}>{m.nombre}</option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-stone-700">Isleta</label>
-        <select
-          required
-          value={isletaId}
-          onChange={(e) => setIsletaId(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-        >
-          <option value="" disabled>Elegir...</option>
-          {isletas.map((i) => (
-            <option key={i.id} value={i.id}>{i.nombre}</option>
           ))}
         </select>
       </div>

@@ -10,7 +10,7 @@ interface Item {
 }
 
 interface Props {
-  tabla: "lotes" | "alimentos" | "isletas" | "materiales";
+  tabla: "lotes" | "alimentos" | "materiales";
   titulo: string;
   /** Campo al que pertenecen (y al que se asigna lo que se agregue acá). */
   campoId: string;
@@ -18,10 +18,10 @@ interface Props {
   soloLectura?: boolean;
 }
 
-const ES_TABLA_STOCK = new Set(["isletas", "materiales"]);
+const ES_TABLA_STOCK = new Set(["materiales"]);
 
-/** CRUD simple y genérico para "lotes"/"alimentos" (módulo Alimentos) e
- * "isletas"/"materiales" (módulo Stock de materiales) — mismo formato. */
+/** CRUD simple y genérico para "lotes"/"alimentos" (módulo Alimentos) y
+ * "materiales" (módulo Stock de materiales) — mismo formato. */
 export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = false }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [nombreNuevo, setNombreNuevo] = useState("");
@@ -125,7 +125,7 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
   }
 
   const singular =
-    tabla === "lotes" ? "el lote" : tabla === "alimentos" ? "el alimento" : tabla === "isletas" ? "la isleta" : "el material";
+    tabla === "lotes" ? "el lote" : tabla === "alimentos" ? "el alimento" : "el material";
 
   return (
     <div className="mx-auto max-w-lg">

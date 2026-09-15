@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client";
 interface Fila {
   id: string;
   fecha: string;
-  isleta: string;
   material: string;
   tipo: "entrada" | "salida";
   cantidad: number;
@@ -21,7 +20,7 @@ export default function UltimasMovimientos({ userId }: { userId: string }) {
     const supabase = createClient();
     const { data } = await supabase
       .from("movimientos_stock")
-      .select("id, fecha, tipo, cantidad, unidad, isletas(nombre), materiales(nombre)")
+      .select("id, fecha, tipo, cantidad, unidad, materiales(nombre)")
       .eq("cargado_por", userId)
       .order("created_at", { ascending: false })
       .limit(5);
@@ -30,7 +29,6 @@ export default function UltimasMovimientos({ userId }: { userId: string }) {
       (data ?? []).map((m: any) => ({
         id: m.id,
         fecha: m.fecha,
-        isleta: m.isletas?.nombre ?? "—",
         material: m.materiales?.nombre ?? "—",
         tipo: m.tipo,
         cantidad: m.cantidad,
@@ -55,7 +53,7 @@ export default function UltimasMovimientos({ userId }: { userId: string }) {
             className="flex items-center justify-between rounded-lg bg-white px-4 py-2.5 text-sm shadow-sm ring-1 ring-stone-200"
           >
             <div>
-              <span className="font-medium">{f.material}</span> → {f.isleta}
+              <span className="font-medium">{f.material}</span>
               <span className="ml-2 text-stone-400">
                 {f.cantidad} {f.unidad} · {f.fecha}
               </span>

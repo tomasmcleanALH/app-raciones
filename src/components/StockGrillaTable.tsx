@@ -3,19 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
-import type { Isleta, Material, Profile, TipoMovimiento } from "@/lib/types";
+import type { Material, Profile, TipoMovimiento } from "@/lib/types";
 
 interface FilaGrilla {
   id: string;
   fecha: string;
-  isleta_id: string;
   material_id: string;
   tipo: TipoMovimiento;
   cantidad: number;
   unidad: string;
   observaciones: string | null;
   created_at: string;
-  isleta_nombre: string;
   material_nombre: string;
   cargado_por_nombre: string;
 }
@@ -23,7 +21,6 @@ interface FilaGrilla {
 interface MovimientoEditable {
   id: string;
   fecha: string;
-  isleta_id: string;
   material_id: string;
   tipo: TipoMovimiento;
   cantidad: string;
@@ -31,15 +28,26 @@ interface MovimientoEditable {
   observaciones: string;
 }
 
+interface FilaMovimientoParaStock {
+  material_id: string;
+  material_nombre: string;
+  tipo: TipoMovimiento;
+  cantidad: number;
+  unidad: string;
+}
+
 export default function StockGrillaTable({ campoId, puedeEditar = true }: { campoId: string; puedeEditar?: boolean }) {
   const [filas, setFilas] = useState<FilaGrilla[]>([]);
-  const [isletas, setIsletas] = useState<Isleta[]>([]);
   const [materiales, setMateriales] = useState<Material[]>([]);
   const [usuarios, setUsuarios] = useState<Profile[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [filtroIsleta, setFiltroIsleta] = useState("");
+  // Stock disponible: se calcula aparte, siempre sobre TODOS los movimientos
+  // del campo (sin los filtros de abajo), para que sea confiable.
+  const [movimientosParaStock, setMovimientosParaStock] = useState<FilaMovimientoParaStock[]>([]);
+  const [cargandoStock, setCargandoStock] = useState(true);
+
   const [filtroMaterial, setFiltroMaterial] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
   const [filtroUsuario, setFiltroUsuario] = useState("");
@@ -58,19 +66,41 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
   useEffect(() => {
     const supabase = createClient();
     Promise.all([
-      supabase.from("isletas").select("*").eq("campo_id", campoId).order("nombre"),
       supabase.from("materiales").select("*").eq("campo_id", campoId).order("nombre"),
       supabase
         .from("profiles")
         .select("*, usuarios_campos!inner(campo_id), usuarios_modulos!inner(modulo)")
         .eq("usuarios_campos.campo_id", campoId)
         .eq("usuarios_modulos.modulo", "materiales"),
-    ]).then(([i, m, u]) => {
-      setIsletas((i.data ?? []) as Isleta[]);
+    ]).then(([m, u]) => {
       setMateriales((m.data ?? []) as Material[]);
       setUsuarios(((u.data ?? []) as Profile[]).sort((a, b) => a.nombre.localeCompare(b.nombre)));
     });
   }, [campoId]);
+
+  const cargarStockDisponible = useCallback(async () => {
+    setCargandoStock(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("movimientos_stock")
+      .select("material_id, tipo, cantidad, unidad, materiales!inner(nombre, campo_id)")
+      .eq("materiales.campo_id", campoId);
+
+    setMovimientosParaStock(
+      (data ?? []).map((m: any) => ({
+        material_id: m.material_id,
+        material_nombre: m.materiales?.nombre ?? "—",
+        tipo: m.tipo,
+        cantidad: m.cantidad,
+        unidad: m.unidad,
+      })),
+    );
+    setCargandoStock(false);
+  }, [campoId]);
+
+  useEffect(() => {
+    cargarStockDisponible();
+  }, [cargarStockDisponible]);
 
   const cargarMovimientos = useCallback(async () => {
     setCargando(true);
@@ -80,13 +110,12 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     let query = supabase
       .from("movimientos_stock")
       .select(
-        "id, fecha, cantidad, unidad, tipo, observaciones, created_at, isleta_id, material_id, isletas!inner(nombre, campo_id), materiales(nombre), profiles(nombre)",
+        "id, fecha, cantidad, unidad, tipo, observaciones, created_at, material_id, materiales!inner(nombre, campo_id), profiles(nombre)",
       )
-      .eq("isletas.campo_id", campoId)
+      .eq("materiales.campo_id", campoId)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false });
 
-    if (filtroIsleta) query = query.eq("isleta_id", filtroIsleta);
     if (filtroMaterial) query = query.eq("material_id", filtroMaterial);
     if (filtroTipo) query = query.eq("tipo", filtroTipo);
     if (filtroUsuario) query = query.eq("cargado_por", filtroUsuario);
@@ -105,48 +134,44 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
       (data ?? []).map((m: any) => ({
         id: m.id,
         fecha: m.fecha,
-        isleta_id: m.isleta_id,
         material_id: m.material_id,
         tipo: m.tipo,
         cantidad: m.cantidad,
         unidad: m.unidad,
         observaciones: m.observaciones,
         created_at: m.created_at,
-        isleta_nombre: m.isletas?.nombre ?? "—",
         material_nombre: m.materiales?.nombre ?? "—",
         cargado_por_nombre: m.profiles?.nombre ?? "—",
       })),
     );
     setSeleccionados(new Set());
     setCargando(false);
-  }, [campoId, filtroIsleta, filtroMaterial, filtroTipo, filtroUsuario, filtroDesde, filtroHasta]);
+  }, [campoId, filtroMaterial, filtroTipo, filtroUsuario, filtroDesde, filtroHasta]);
 
   useEffect(() => {
     cargarMovimientos();
   }, [cargarMovimientos]);
 
-  const totalColumnas = puedeEditar ? 10 : 9;
+  function actualizarTodo() {
+    cargarMovimientos();
+    cargarStockDisponible();
+  }
 
-  /** Stock actual = entradas menos salidas, agrupado por isleta y material
+  const totalColumnas = puedeEditar ? 9 : 8;
+
+  /** Stock disponible = entradas menos salidas, agrupado por material
    * (y por unidad, por si el mismo material se cargó alguna vez con otra). */
-  const resumenPorIsleta = useMemo(() => {
-    const mapaIsletas = new Map<string, Map<string, { material: string; unidad: string; total: number }>>();
-    for (const f of filas) {
-      if (!mapaIsletas.has(f.isleta_nombre)) mapaIsletas.set(f.isleta_nombre, new Map());
-      const mapaMateriales = mapaIsletas.get(f.isleta_nombre)!;
-      const clave = `${f.material_nombre}|${f.unidad}`;
-      const signo = f.tipo === "entrada" ? 1 : -1;
-      const actual = mapaMateriales.get(clave);
-      if (actual) actual.total += signo * Number(f.cantidad);
-      else mapaMateriales.set(clave, { material: f.material_nombre, unidad: f.unidad, total: signo * Number(f.cantidad) });
+  const stockDisponible = useMemo(() => {
+    const mapa = new Map<string, { material: string; unidad: string; total: number }>();
+    for (const m of movimientosParaStock) {
+      const clave = `${m.material_nombre}|${m.unidad}`;
+      const signo = m.tipo === "entrada" ? 1 : -1;
+      const actual = mapa.get(clave);
+      if (actual) actual.total += signo * Number(m.cantidad);
+      else mapa.set(clave, { material: m.material_nombre, unidad: m.unidad, total: signo * Number(m.cantidad) });
     }
-    return [...mapaIsletas.entries()]
-      .map(([isleta, mapaMateriales]) => ({
-        isleta,
-        materiales: [...mapaMateriales.values()].sort((a, b) => a.material.localeCompare(b.material)),
-      }))
-      .sort((a, b) => a.isleta.localeCompare(b.isleta));
-  }, [filas]);
+    return [...mapa.values()].sort((a, b) => a.material.localeCompare(b.material));
+  }, [movimientosParaStock]);
 
   function abrirEdicion(f: FilaGrilla) {
     setMenuAbierto(null);
@@ -154,7 +179,6 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     setEditando({
       id: f.id,
       fecha: f.fecha,
-      isleta_id: f.isleta_id,
       material_id: f.material_id,
       tipo: f.tipo,
       cantidad: String(f.cantidad),
@@ -174,7 +198,6 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
       .from("movimientos_stock")
       .update({
         fecha: editando.fecha,
-        isleta_id: editando.isleta_id,
         material_id: editando.material_id,
         tipo: editando.tipo,
         cantidad: Number(editando.cantidad),
@@ -191,7 +214,7 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     }
 
     setEditando(null);
-    cargarMovimientos();
+    actualizarTodo();
   }
 
   async function borrarMovimiento(id: string) {
@@ -201,7 +224,7 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     setBorrando(false);
     setConfirmandoBorrado(null);
     setMenuAbierto(null);
-    cargarMovimientos();
+    actualizarTodo();
   }
 
   function toggleSeleccionado(id: string) {
@@ -226,7 +249,6 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     const datos = filasAExportar.map((f) => ({
       "Fecha": f.fecha,
       "Material": f.material_nombre,
-      "Isleta": f.isleta_nombre,
       "Tipo": f.tipo === "entrada" ? "Entrada" : "Salida",
       "Cantidad": f.cantidad,
       "Unidad": f.unidad,
@@ -237,7 +259,7 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
 
     const hoja = XLSX.utils.json_to_sheet(datos);
     hoja["!cols"] = [
-      { wch: 13 }, { wch: 20 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 30 }, { wch: 18 },
+      { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 30 }, { wch: 18 },
     ];
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, "Movimientos");
@@ -246,7 +268,7 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     XLSX.writeFile(libro, `stock-materiales-${hoy}.xlsx`);
   }
 
-  const hayFiltrosActivos = !!(filtroIsleta || filtroMaterial || filtroTipo || filtroUsuario || filtroDesde || filtroHasta);
+  const hayFiltrosActivos = !!(filtroMaterial || filtroTipo || filtroUsuario || filtroDesde || filtroHasta);
 
   const controlesFiltro = (
     <>
@@ -258,17 +280,6 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
         <option value="">Todos los materiales</option>
         {materiales.map((m) => (
           <option key={m.id} value={m.id}>{m.nombre}</option>
-        ))}
-      </select>
-
-      <select
-        value={filtroIsleta}
-        onChange={(e) => setFiltroIsleta(e.target.value)}
-        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
-      >
-        <option value="">Todas las isletas</option>
-        {isletas.map((i) => (
-          <option key={i.id} value={i.id}>{i.nombre}</option>
         ))}
       </select>
 
@@ -311,7 +322,6 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
       {hayFiltrosActivos && (
         <button
           onClick={() => {
-            setFiltroIsleta("");
             setFiltroMaterial("");
             setFiltroTipo("");
             setFiltroUsuario("");
@@ -348,15 +358,15 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
 
   const botonActualizar = (
     <button
-      onClick={() => cargarMovimientos()}
-      disabled={cargando}
+      onClick={actualizarTodo}
+      disabled={cargando || cargandoStock}
       title="Actualizar"
       aria-label="Actualizar"
       className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-stone-300 text-stone-600 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <svg
         viewBox="0 0 24 24"
-        className={`h-5 w-5 ${cargando ? "animate-spin" : ""}`}
+        className={`h-5 w-5 ${cargando || cargandoStock ? "animate-spin" : ""}`}
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
@@ -379,36 +389,31 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
     </span>
   );
 
-  const resumenPanel = (
-    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
-      <h2 className="mb-3 text-sm font-semibold text-stone-700">Stock actual por isleta</h2>
-      {filas.length === 0 ? (
-        <p className="text-sm text-stone-400">Sin movimientos para resumir.</p>
-      ) : (
-        <div className="space-y-4">
-          {resumenPorIsleta.map((grupo) => (
-            <div key={grupo.isleta}>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400">{grupo.isleta}</p>
-              <ul className="space-y-1.5">
-                {grupo.materiales.map((r) => (
-                  <li key={`${grupo.isleta}|${r.material}|${r.unidad}`} className="flex items-start justify-between gap-3 text-sm">
-                    <span className="text-stone-600">{r.material}</span>
-                    <span className="shrink-0 font-medium text-stone-900">
-                      {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
   return (
-    <div className="lg:flex lg:items-start lg:gap-6">
-    <div className="min-w-0 lg:flex-1">
+    <div>
+      {/* Stock disponible: lo primero y lo más importante de esta pantalla. */}
+      <div className="mb-6 rounded-xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
+        <h2 className="mb-3 text-sm font-semibold text-stone-700">Stock disponible</h2>
+        {cargandoStock ? (
+          <p className="text-sm text-stone-400">Cargando...</p>
+        ) : stockDisponible.length === 0 ? (
+          <p className="text-sm text-stone-400">Todavía no hay movimientos cargados.</p>
+        ) : (
+          <ul className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            {stockDisponible.map((r) => (
+              <li key={`${r.material}|${r.unidad}`} className="flex items-baseline justify-between gap-3 border-b border-stone-100 py-1.5 text-sm">
+                <span className="text-stone-600">{r.material}</span>
+                <span className="shrink-0 font-semibold text-stone-900">
+                  {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <h2 className="mb-3 text-sm font-semibold text-stone-700">Movimientos</h2>
+
       {/* Filtros — escritorio: barra fija, igual que en la grilla de alimentos */}
       <div className="mb-4 hidden flex-wrap items-center gap-2 md:flex">
         {controlesFiltro}
@@ -537,11 +542,7 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
 
                 <div className="mt-2 space-y-1 pl-6 text-stone-700">
                   <p><span className="text-stone-500">Material:</span> {f.material_nombre}</p>
-                  <p>
-                    <span className="text-stone-500">Isleta:</span> {f.isleta_nombre}
-                    <span className="mx-1.5 text-stone-300">|</span>
-                    <span className="text-stone-500">Cantidad:</span> {f.cantidad} {f.unidad}
-                  </p>
+                  <p><span className="text-stone-500">Cantidad:</span> {f.cantidad} {f.unidad}</p>
                   <p><span className="text-stone-500">Cargado por:</span> {f.cargado_por_nombre}</p>
                   {f.observaciones && (
                     <p><span className="text-stone-500">Observaciones:</span> {f.observaciones}</p>
@@ -558,7 +559,7 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
 
       {/* Escritorio: tabla */}
       <div className="hidden overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-stone-200 md:block">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[700px] text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
               <th className="w-10 px-4 py-2.5">
@@ -572,7 +573,6 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
               </th>
               <th className="px-4 py-2.5 font-medium">Fecha</th>
               <th className="px-4 py-2.5 font-medium">Material</th>
-              <th className="px-4 py-2.5 font-medium">Isleta</th>
               <th className="px-4 py-2.5 font-medium">Tipo</th>
               <th className="px-4 py-2.5 font-medium">Cantidad</th>
               <th className="px-4 py-2.5 font-medium">Cargado por</th>
@@ -609,7 +609,6 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
                   </td>
                   <td className="px-4 py-2.5">{f.fecha}</td>
                   <td className="px-4 py-2.5">{f.material_nombre}</td>
-                  <td className="px-4 py-2.5">{f.isleta_nombre}</td>
                   <td className="px-4 py-2.5">{badgeTipo(f.tipo)}</td>
                   <td className="px-4 py-2.5">{f.cantidad} {f.unidad}</td>
                   <td className="px-4 py-2.5">{f.cargado_por_nombre}</td>
@@ -684,11 +683,8 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
           </tbody>
         </table>
       </div>
-    </div>
 
-    <div className="mt-4 lg:mt-0 lg:w-72 lg:shrink-0">{resumenPanel}</div>
-
-    {editando && (
+      {editando && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
           <form
             onSubmit={guardarEdicion}
@@ -729,20 +725,6 @@ export default function StockGrillaTable({ campoId, puedeEditar = true }: { camp
               >
                 {materiales.map((m) => (
                   <option key={m.id} value={m.id}>{m.nombre}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-stone-700">Isleta</label>
-              <select
-                required
-                value={editando.isleta_id}
-                onChange={(e) => setEditando({ ...editando, isleta_id: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-              >
-                {isletas.map((i) => (
-                  <option key={i.id} value={i.id}>{i.nombre}</option>
                 ))}
               </select>
             </div>

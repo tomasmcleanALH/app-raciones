@@ -55,16 +55,8 @@ export interface EntregaConNombres extends Entrega {
 }
 
 // ------------------------------------------------------------
-// Módulo Stock de materiales (isletas, materiales, movimientos)
+// Módulo Stock de materiales (materiales, movimientos de entrada/salida)
 // ------------------------------------------------------------
-
-export interface Isleta {
-  id: string;
-  campo_id: string;
-  nombre: string;
-  activo: boolean;
-  created_at: string;
-}
 
 export interface Material {
   id: string;
@@ -79,7 +71,6 @@ export type TipoMovimiento = "entrada" | "salida";
 export interface MovimientoStock {
   id: string;
   fecha: string; // YYYY-MM-DD
-  isleta_id: string;
   material_id: string;
   tipo: TipoMovimiento;
   cantidad: number;
@@ -91,7 +82,6 @@ export interface MovimientoStock {
 
 /** Movimiento de stock con los nombres ya resueltos, para mostrar en la grilla. */
 export interface MovimientoStockConNombres extends MovimientoStock {
-  isleta_nombre: string;
   material_nombre: string;
   cargado_por_nombre: string;
 }
