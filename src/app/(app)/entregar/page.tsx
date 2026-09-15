@@ -1,10 +1,15 @@
+import { redirect } from "next/navigation";
 import EntregaForm from "@/components/EntregaForm";
 import UltimasEntregas from "@/components/UltimasEntregas";
 import { requireProfile } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
+import { obtenerModulosUsuario } from "@/lib/modulos";
 
 export default async function EntregarPage() {
   const { userId, profile } = await requireProfile();
+  const modulos = await obtenerModulosUsuario(userId, profile.rol);
+  if (!modulos.includes("alimentos")) redirect("/");
+
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
   if (!campo) {

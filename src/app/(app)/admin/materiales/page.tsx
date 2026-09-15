@@ -4,10 +4,10 @@ import { requireEncargadoOGerente } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
 import { obtenerModulosUsuario } from "@/lib/modulos";
 
-export default async function LotesAdminPage() {
+export default async function MaterialesAdminPage() {
   const { userId, profile } = await requireEncargadoOGerente();
   const modulos = await obtenerModulosUsuario(userId, profile.rol);
-  if (!modulos.includes("alimentos")) redirect("/");
+  if (!modulos.includes("materiales")) redirect("/");
 
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
@@ -23,8 +23,8 @@ export default async function LotesAdminPage() {
 
   return (
     <CatalogoAdmin
-      tabla="lotes"
-      titulo="Lotes"
+      tabla="materiales"
+      titulo="Materiales"
       campoId={campo.id}
       soloLectura={profile.rol !== "encargado" && profile.rol !== "dueno"}
     />

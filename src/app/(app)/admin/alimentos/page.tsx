@@ -1,9 +1,14 @@
+import { redirect } from "next/navigation";
 import CatalogoAdmin from "@/components/CatalogoAdmin";
 import { requireEncargadoOGerente } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
+import { obtenerModulosUsuario } from "@/lib/modulos";
 
 export default async function AlimentosAdminPage() {
   const { userId, profile } = await requireEncargadoOGerente();
+  const modulos = await obtenerModulosUsuario(userId, profile.rol);
+  if (!modulos.includes("alimentos")) redirect("/");
+
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
   if (!campo) {

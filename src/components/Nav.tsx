@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Campo, Rol } from "@/lib/types";
+import type { Campo, Modulo, Rol } from "@/lib/types";
 import CampoSelector from "./CampoSelector";
 import SyncStatusBadge from "./SyncStatusBadge";
 
@@ -13,11 +13,13 @@ export default function Nav({
   rol,
   campo,
   campos,
+  modulos,
 }: {
   nombre: string;
   rol: Rol;
   campo: Campo | null;
   campos: Campo[];
+  modulos: Modulo[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -25,16 +27,34 @@ export default function Nav({
 
   const veTodo = rol === "encargado" || rol === "gerente" || rol === "dueno";
 
-  const links = veTodo
-    ? [
-        { href: "/", label: "Grilla" },
-        { href: "/entregar", label: "Cargar entrega" },
-        { href: "/admin/lotes", label: "Lotes" },
-        { href: "/admin/alimentos", label: "Alimentos" },
-        ...(rol === "encargado" || rol === "dueno" ? [{ href: "/admin/usuarios", label: "Usuarios" }] : []),
-        ...(rol === "dueno" ? [{ href: "/admin/campos", label: "Campos" }] : []),
-      ]
-    : [{ href: "/", label: "Cargar entrega" }];
+  const linksAlimentos = !modulos.includes("alimentos")
+    ? []
+    : veTodo
+      ? [
+          { href: "/", label: "Grilla" },
+          { href: "/entregar", label: "Cargar entrega" },
+          { href: "/admin/lotes", label: "Lotes" },
+          { href: "/admin/alimentos", label: "Alimentos" },
+        ]
+      : [{ href: "/", label: "Cargar entrega" }];
+
+  const linksMateriales = !modulos.includes("materiales")
+    ? []
+    : veTodo
+      ? [
+          { href: "/stock", label: "Stock" },
+          { href: "/stock/cargar", label: "Cargar movimiento" },
+          { href: "/admin/isletas", label: "Isletas" },
+          { href: "/admin/materiales", label: "Materiales" },
+        ]
+      : [{ href: "/stock/cargar", label: "Cargar movimiento" }];
+
+  const links = [
+    ...linksAlimentos,
+    ...linksMateriales,
+    ...(rol === "encargado" || rol === "dueno" ? [{ href: "/admin/usuarios", label: "Usuarios" }] : []),
+    ...(rol === "dueno" ? [{ href: "/admin/campos", label: "Campos" }] : []),
+  ];
 
   // Si cambia de página (se tocó un link), cerrar el menú de celular.
   useEffect(() => {

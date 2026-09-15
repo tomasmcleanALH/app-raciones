@@ -10,7 +10,7 @@ interface Item {
 }
 
 interface Props {
-  tabla: "lotes" | "alimentos";
+  tabla: "lotes" | "alimentos" | "isletas" | "materiales";
   titulo: string;
   /** Campo al que pertenecen (y al que se asigna lo que se agregue acá). */
   campoId: string;
@@ -18,7 +18,10 @@ interface Props {
   soloLectura?: boolean;
 }
 
-/** CRUD simple y genérico para las tablas "lotes" y "alimentos" (mismo formato). */
+const ES_TABLA_STOCK = new Set(["isletas", "materiales"]);
+
+/** CRUD simple y genérico para "lotes"/"alimentos" (módulo Alimentos) e
+ * "isletas"/"materiales" (módulo Stock de materiales) — mismo formato. */
 export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = false }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [nombreNuevo, setNombreNuevo] = useState("");
@@ -109,10 +112,11 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
     setMenuAbierto(null);
 
     if (error) {
-      // 23503 = violación de llave foránea: ya hay entregas que usan este lote/alimento.
+      // 23503 = violación de llave foránea: ya se usó en alguna entrega/movimiento.
+      const usoTexto = ES_TABLA_STOCK.has(tabla) ? "algún movimiento de stock" : "alguna entrega";
       setErrorBorrado(
         error.code === "23503"
-          ? `No se puede borrar "${item.nombre}": ya se usó en alguna entrega. Desactivalo en cambio.`
+          ? `No se puede borrar "${item.nombre}": ya se usó en ${usoTexto}. Desactivalo en cambio.`
           : error.message,
       );
       return;
@@ -120,7 +124,8 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
     recargar();
   }
 
-  const singular = tabla === "lotes" ? "el lote" : "el alimento";
+  const singular =
+    tabla === "lotes" ? "el lote" : tabla === "alimentos" ? "el alimento" : tabla === "isletas" ? "la isleta" : "el material";
 
   return (
     <div className="mx-auto max-w-lg">
@@ -232,8 +237,10 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
       </div>
       {!soloLectura && (
       <p className="mt-2 text-xs text-stone-400">
-        Desactivar no borra el historial: sólo deja de aparecer como opción al cargar una entrega nueva.
-        Borrar es permanente y sólo se puede hacer si todavía no se usó en ninguna entrega.
+        Desactivar no borra el historial: sólo deja de aparecer como opción al cargar{" "}
+        {ES_TABLA_STOCK.has(tabla) ? "un movimiento nuevo" : "una entrega nueva"}.
+        Borrar es permanente y sólo se puede hacer si todavía no se usó en{" "}
+        {ES_TABLA_STOCK.has(tabla) ? "ningún movimiento" : "ninguna entrega"}.
       </p>
       )}
 

@@ -1,23 +1,15 @@
 import { redirect } from "next/navigation";
-import EntregaForm from "@/components/EntregaForm";
-import GrillaTable from "@/components/GrillaTable";
-import UltimasEntregas from "@/components/UltimasEntregas";
+import MovimientoForm from "@/components/MovimientoForm";
+import StockGrillaTable from "@/components/StockGrillaTable";
+import UltimasMovimientos from "@/components/UltimasMovimientos";
 import { requireProfile } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
 import { obtenerModulosUsuario } from "@/lib/modulos";
 
-export default async function HomePage() {
+export default async function StockPage() {
   const { userId, profile } = await requireProfile();
   const modulos = await obtenerModulosUsuario(userId, profile.rol);
-
-  if (!modulos.includes("alimentos")) {
-    if (modulos.includes("materiales")) redirect("/stock");
-    return (
-      <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
-        Todavía no tenés acceso a ningún módulo. Hablá con el Dueño.
-      </p>
-    );
-  }
+  if (!modulos.includes("materiales")) redirect("/");
 
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
@@ -34,17 +26,17 @@ export default async function HomePage() {
   if (profile.rol === "encargado" || profile.rol === "gerente" || profile.rol === "dueno") {
     return (
       <div>
-        <h1 className="mb-4 text-xl font-bold text-stone-900">Todas las entregas</h1>
-        <GrillaTable campoId={campo.id} puedeEditar={profile.rol === "encargado" || profile.rol === "dueno"} />
+        <h1 className="mb-4 text-xl font-bold text-stone-900">Stock de materiales</h1>
+        <StockGrillaTable campoId={campo.id} puedeEditar={profile.rol === "encargado" || profile.rol === "dueno"} />
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-md">
-      <h1 className="mb-4 text-xl font-bold text-stone-900">Cargar entrega</h1>
-      <EntregaForm userId={userId} campoId={campo.id} />
-      <UltimasEntregas userId={userId} campoId={campo.id} />
+      <h1 className="mb-4 text-xl font-bold text-stone-900">Cargar movimiento de stock</h1>
+      <MovimientoForm userId={userId} campoId={campo.id} />
+      <UltimasMovimientos userId={userId} />
     </div>
   );
 }

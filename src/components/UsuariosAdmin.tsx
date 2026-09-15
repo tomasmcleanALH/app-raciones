@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Campo, Profile, Rol } from "@/lib/types";
+import type { Campo, Modulo, Profile, Rol } from "@/lib/types";
 
 // Nombres internos (tractorista/encargado/gerente/dueno) sin cambios en el
 // código y la base; esto sólo traduce lo que se muestra en pantalla.
@@ -13,10 +13,17 @@ const ETIQUETA_ROL: Record<Rol, string> = {
   dueno: "Dueño",
 };
 
+const ETIQUETA_MODULO: Record<Modulo, string> = {
+  alimentos: "Alimentos",
+  materiales: "Materiales",
+};
+
 const ROLES: Rol[] = ["tractorista", "gerente", "encargado", "dueno"];
+const MODULOS: Modulo[] = ["alimentos", "materiales"];
 
 interface Fila extends Profile {
   campo_nombre: string;
+  modulos: Modulo[];
 }
 
 export default function UsuariosAdmin({
@@ -40,6 +47,7 @@ export default function UsuariosAdmin({
   const [password, setPassword] = useState("");
   const [rol, setRol] = useState<Rol>("tractorista");
   const [campoIdForm, setCampoIdForm] = useState("");
+  const [modulosForm, setModulosForm] = useState<Modulo[]>(["alimentos"]);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -55,19 +63,21 @@ export default function UsuariosAdmin({
   const [passwordEdit, setPasswordEdit] = useState("");
   const [rolEdit, setRolEdit] = useState<Rol>("tractorista");
   const [campoIdEdit, setCampoIdEdit] = useState("");
+  const [modulosEdit, setModulosEdit] = useState<Modulo[]>(["alimentos"]);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
 
   async function recargar() {
     const supabase = createClient();
     const [{ data }, camposRes] = await Promise.all([
-      supabase.from("profiles").select("*, usuarios_campos(campos(nombre))").order("nombre"),
+      supabase.from("profiles").select("*, usuarios_campos(campos(nombre)), usuarios_modulos(modulo)").order("nombre"),
       esDueno ? supabase.from("campos").select("*").order("nombre") : Promise.resolve({ data: null }),
     ]);
 
     const filas = ((data ?? []) as any[]).map((u) => ({
       ...u,
       campo_nombre: u.rol === "dueno" ? "Todos" : (u.usuarios_campos?.[0]?.campos?.nombre ?? "—"),
+      modulos: (u.usuarios_modulos?.map((m: any) => m.modulo) ?? []) as Modulo[],
     })) as Fila[];
     setUsuarios(filas);
     if (camposRes.data) setCampos(camposRes.data as Campo[]);
@@ -98,7 +108,7 @@ export default function UsuariosAdmin({
         password,
         nombre,
         rol,
-        ...(esDueno && rol !== "dueno" ? { campoId: campoIdForm } : {}),
+        ...(esDueno && rol !== "dueno" ? { campoId: campoIdForm, modulos: modulosForm } : {}),
       }),
     });
     const data = await res.json();
@@ -115,7 +125,12 @@ export default function UsuariosAdmin({
     setPassword("");
     setRol("tractorista");
     setCampoIdForm("");
+    setModulosForm(["alimentos"]);
     recargar();
+  }
+
+  function toggleModulo(lista: Modulo[], modulo: Modulo): Modulo[] {
+    return lista.includes(modulo) ? lista.filter((m) => m !== modulo) : [...lista, modulo];
   }
 
   async function cambiar(id: string, cambios: { activo?: boolean; rol?: Rol }) {
@@ -137,6 +152,7 @@ export default function UsuariosAdmin({
     setRolEdit(u.rol);
     const campoActual = campos.find((c) => c.nombre === u.campo_nombre);
     setCampoIdEdit(campoActual?.id ?? "");
+    setModulosEdit(u.modulos.length > 0 ? u.modulos : ["alimentos"]);
   }
 
   async function guardarEdicion(e: React.FormEvent) {
@@ -157,6 +173,7 @@ export default function UsuariosAdmin({
         nombre: nombreEdit.trim(),
         rol: rolEdit,
         ...(esDueno ? { campoId: rolEdit === "dueno" ? null : campoIdEdit } : {}),
+        ...(esDueno && rolEdit !== "dueno" ? { modulos: modulosEdit } : {}),
         ...(usuarioEdit.trim() ? { email: usuarioEdit.trim() } : {}),
         ...(passwordEdit ? { password: passwordEdit } : {}),
       }),
@@ -247,6 +264,22 @@ export default function UsuariosAdmin({
             ))}
           </select>
         )}
+        {esDueno && rol !== "dueno" && (
+          <div className="flex gap-4 rounded-lg border border-stone-200 px-3 py-2.5">
+            <span className="text-sm text-stone-500">Módulos:</span>
+            {MODULOS.map((m) => (
+              <label key={m} className="flex items-center gap-1.5 text-sm text-stone-700">
+                <input
+                  type="checkbox"
+                  checked={modulosForm.includes(m)}
+                  onChange={() => setModulosForm((actual) => toggleModulo(actual, m))}
+                  className="h-4 w-4 rounded border-stone-300 accent-brand-700"
+                />
+                {ETIQUETA_MODULO[m]}
+              </label>
+            ))}
+          </div>
+        )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         {ok && <p className="text-sm text-emerald-700">{ok}</p>}
@@ -277,6 +310,11 @@ export default function UsuariosAdmin({
                     {esDueno && (
                       <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">{u.campo_nombre}</span>
                     )}
+                    {esDueno && u.rol !== "dueno" && u.modulos.map((m) => (
+                      <span key={m} className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
+                        {ETIQUETA_MODULO[m]}
+                      </span>
+                    ))}
                   </div>
                   {u.id !== miPropioId && (
                     <div className="flex shrink-0 items-center gap-2">
@@ -421,6 +459,25 @@ export default function UsuariosAdmin({
                     <option key={c.id} value={c.id}>{c.nombre}</option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {esDueno && rolEdit !== "dueno" && (
+              <div>
+                <label className="block text-sm font-medium text-stone-700">Módulos</label>
+                <div className="mt-1 flex gap-4 rounded-lg border border-stone-300 px-3 py-2.5">
+                  {MODULOS.map((m) => (
+                    <label key={m} className="flex items-center gap-1.5 text-sm text-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={modulosEdit.includes(m)}
+                        onChange={() => setModulosEdit((actual) => toggleModulo(actual, m))}
+                        className="h-4 w-4 rounded border-stone-300 accent-brand-700"
+                      />
+                      {ETIQUETA_MODULO[m]}
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
 

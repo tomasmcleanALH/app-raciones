@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
-import CatalogoAdmin from "@/components/CatalogoAdmin";
-import { requireEncargadoOGerente } from "@/lib/auth";
+import MovimientoForm from "@/components/MovimientoForm";
+import UltimasMovimientos from "@/components/UltimasMovimientos";
+import { requireProfile } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
 import { obtenerModulosUsuario } from "@/lib/modulos";
 
-export default async function LotesAdminPage() {
-  const { userId, profile } = await requireEncargadoOGerente();
+export default async function CargarMovimientoPage() {
+  const { userId, profile } = await requireProfile();
   const modulos = await obtenerModulosUsuario(userId, profile.rol);
-  if (!modulos.includes("alimentos")) redirect("/");
+  if (!modulos.includes("materiales")) redirect("/");
 
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
@@ -22,11 +23,10 @@ export default async function LotesAdminPage() {
   }
 
   return (
-    <CatalogoAdmin
-      tabla="lotes"
-      titulo="Lotes"
-      campoId={campo.id}
-      soloLectura={profile.rol !== "encargado" && profile.rol !== "dueno"}
-    />
+    <div className="mx-auto max-w-md">
+      <h1 className="mb-4 text-xl font-bold text-stone-900">Cargar movimiento de stock</h1>
+      <MovimientoForm userId={userId} campoId={campo.id} />
+      <UltimasMovimientos userId={userId} />
+    </div>
   );
 }
