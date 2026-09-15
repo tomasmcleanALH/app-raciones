@@ -5,14 +5,13 @@ import type { Campo, Rol } from "@/lib/types";
 export const COOKIE_CAMPO_ACTUAL = "campo_actual";
 
 /**
- * Campo con el que trabaja esta sesión ahora mismo:
- * - Si no es dueño: el único campo al que pertenece (o null si todavía
- *   no se lo asignaron a ninguno).
- * - Si es dueño: el que eligió con el selector (cookie), o el primero
- *   que haya, o null si todavía no se creó ningún campo.
+ * Campo con el que trabaja esta sesión ahora mismo, de la lista de campos
+ * a los que pertenece este usuario (el Dueño pertenece a todos). Cualquier
+ * usuario puede pertenecer a más de un campo; si es así, se usa el que
+ * eligió con el selector (cookie), o el primero activo si todavía no eligió.
  *
- * Devuelve también la lista completa de campos (sólo tiene más de uno
- * cuando es dueño; útil para el selector).
+ * Devuelve también la lista completa de campos a los que pertenece (útil
+ * para el selector, que sólo se muestra cuando hay más de uno).
  */
 export async function obtenerCampoActual(
   userId: string,
@@ -20,20 +19,23 @@ export async function obtenerCampoActual(
 ): Promise<{ campo: Campo | null; campos: Campo[] }> {
   const supabase = await createClient();
 
-  if (rol !== "dueno") {
+  let lista: Campo[];
+  if (rol === "dueno") {
+    const { data } = await supabase.from("campos").select("*").order("nombre");
+    lista = (data ?? []) as Campo[];
+  } else {
     const { data } = await supabase
       .from("usuarios_campos")
       .select("campos(*)")
-      .eq("usuario_id", userId)
-      .limit(1)
-      .maybeSingle();
-    const campo = (data?.campos as unknown as Campo) ?? null;
-    return { campo, campos: campo ? [campo] : [] };
+      .eq("usuario_id", userId);
+    lista = ((data ?? []) as any[])
+      .map((fila) => fila.campos as Campo)
+      .filter(Boolean)
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
   }
 
-  const { data: campos } = await supabase.from("campos").select("*").order("nombre");
-  const lista = (campos ?? []) as Campo[];
   if (lista.length === 0) return { campo: null, campos: [] };
+  if (lista.length === 1) return { campo: lista[0], campos: lista };
 
   const cookieStore = await cookies();
   const elegidoId = cookieStore.get(COOKIE_CAMPO_ACTUAL)?.value;

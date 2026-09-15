@@ -22,7 +22,8 @@ const ROLES: Rol[] = ["tractorista", "gerente", "encargado", "dueno"];
 const MODULOS: Modulo[] = ["alimentos", "materiales"];
 
 interface Fila extends Profile {
-  campo_nombre: string;
+  campo_ids: string[];
+  campo_nombres: string[];
   modulos: Modulo[];
 }
 
@@ -46,7 +47,7 @@ export default function UsuariosAdmin({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rol, setRol] = useState<Rol>("tractorista");
-  const [campoIdForm, setCampoIdForm] = useState("");
+  const [camposIdsForm, setCamposIdsForm] = useState<string[]>([]);
   const [modulosForm, setModulosForm] = useState<Modulo[]>(["alimentos"]);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +63,7 @@ export default function UsuariosAdmin({
   const [usuarioEdit, setUsuarioEdit] = useState("");
   const [passwordEdit, setPasswordEdit] = useState("");
   const [rolEdit, setRolEdit] = useState<Rol>("tractorista");
-  const [campoIdEdit, setCampoIdEdit] = useState("");
+  const [camposIdsEdit, setCamposIdsEdit] = useState<string[]>([]);
   const [modulosEdit, setModulosEdit] = useState<Modulo[]>(["alimentos"]);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
@@ -70,15 +71,21 @@ export default function UsuariosAdmin({
   async function recargar() {
     const supabase = createClient();
     const [{ data }, camposRes] = await Promise.all([
-      supabase.from("profiles").select("*, usuarios_campos(campos(nombre)), usuarios_modulos(modulo)").order("nombre"),
+      supabase.from("profiles").select("*, usuarios_campos(campos(id, nombre)), usuarios_modulos(modulo)").order("nombre"),
       esDueno ? supabase.from("campos").select("*").order("nombre") : Promise.resolve({ data: null }),
     ]);
 
-    const filas = ((data ?? []) as any[]).map((u) => ({
-      ...u,
-      campo_nombre: u.rol === "dueno" ? "Todos" : (u.usuarios_campos?.[0]?.campos?.nombre ?? "—"),
-      modulos: (u.usuarios_modulos?.map((m: any) => m.modulo) ?? []) as Modulo[],
-    })) as Fila[];
+    const filas = ((data ?? []) as any[]).map((u) => {
+      const camposUsuario = ((u.usuarios_campos ?? []) as any[])
+        .map((uc) => uc.campos as { id: string; nombre: string })
+        .filter(Boolean);
+      return {
+        ...u,
+        campo_ids: u.rol === "dueno" ? [] : camposUsuario.map((c) => c.id),
+        campo_nombres: u.rol === "dueno" ? ["Todos"] : camposUsuario.map((c) => c.nombre),
+        modulos: (u.usuarios_modulos?.map((m: any) => m.modulo) ?? []) as Modulo[],
+      };
+    }) as Fila[];
     setUsuarios(filas);
     if (camposRes.data) setCampos(camposRes.data as Campo[]);
     setCargando(false);
@@ -94,8 +101,8 @@ export default function UsuariosAdmin({
     setError(null);
     setOk(null);
 
-    if (esDueno && rol !== "dueno" && !campoIdForm) {
-      setError("Elegí a qué campo pertenece.");
+    if (esDueno && rol !== "dueno" && camposIdsForm.length === 0) {
+      setError("Elegí a qué campo(s) pertenece.");
       return;
     }
 
@@ -108,7 +115,7 @@ export default function UsuariosAdmin({
         password,
         nombre,
         rol,
-        ...(esDueno && rol !== "dueno" ? { campoId: campoIdForm, modulos: modulosForm } : {}),
+        ...(esDueno && rol !== "dueno" ? { campoIds: camposIdsForm, modulos: modulosForm } : {}),
       }),
     });
     const data = await res.json();
@@ -124,9 +131,13 @@ export default function UsuariosAdmin({
     setEmail("");
     setPassword("");
     setRol("tractorista");
-    setCampoIdForm("");
+    setCamposIdsForm([]);
     setModulosForm(["alimentos"]);
     recargar();
+  }
+
+  function toggleId(lista: string[], id: string): string[] {
+    return lista.includes(id) ? lista.filter((x) => x !== id) : [...lista, id];
   }
 
   function toggleModulo(lista: Modulo[], modulo: Modulo): Modulo[] {
@@ -150,16 +161,15 @@ export default function UsuariosAdmin({
     setUsuarioEdit("");
     setPasswordEdit("");
     setRolEdit(u.rol);
-    const campoActual = campos.find((c) => c.nombre === u.campo_nombre);
-    setCampoIdEdit(campoActual?.id ?? "");
+    setCamposIdsEdit(u.campo_ids);
     setModulosEdit(u.modulos.length > 0 ? u.modulos : ["alimentos"]);
   }
 
   async function guardarEdicion(e: React.FormEvent) {
     e.preventDefault();
     if (!editando || !nombreEdit.trim()) return;
-    if (esDueno && rolEdit !== "dueno" && !campoIdEdit) {
-      setErrorEdicion("Elegí a qué campo pertenece.");
+    if (esDueno && rolEdit !== "dueno" && camposIdsEdit.length === 0) {
+      setErrorEdicion("Elegí a qué campo(s) pertenece.");
       return;
     }
     setGuardandoEdicion(true);
@@ -172,7 +182,7 @@ export default function UsuariosAdmin({
         id: editando.id,
         nombre: nombreEdit.trim(),
         rol: rolEdit,
-        ...(esDueno ? { campoId: rolEdit === "dueno" ? null : campoIdEdit } : {}),
+        ...(esDueno ? { campoIds: rolEdit === "dueno" ? [] : camposIdsEdit } : {}),
         ...(esDueno && rolEdit !== "dueno" ? { modulos: modulosEdit } : {}),
         ...(usuarioEdit.trim() ? { email: usuarioEdit.trim() } : {}),
         ...(passwordEdit ? { password: passwordEdit } : {}),
@@ -252,17 +262,20 @@ export default function UsuariosAdmin({
           ))}
         </select>
         {esDueno && rol !== "dueno" && (
-          <select
-            value={campoIdForm}
-            onChange={(e) => setCampoIdForm(e.target.value)}
-            required
-            className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-          >
-            <option value="" disabled>¿A qué campo pertenece?</option>
+          <div className="flex flex-wrap gap-4 rounded-lg border border-stone-200 px-3 py-2.5">
+            <span className="w-full text-sm text-stone-500">¿A qué campo(s) pertenece?</span>
             {campos.map((c) => (
-              <option key={c.id} value={c.id}>{c.nombre}</option>
+              <label key={c.id} className="flex items-center gap-1.5 text-sm text-stone-700">
+                <input
+                  type="checkbox"
+                  checked={camposIdsForm.includes(c.id)}
+                  onChange={() => setCamposIdsForm((actual) => toggleId(actual, c.id))}
+                  className="h-4 w-4 rounded border-stone-300 accent-brand-700"
+                />
+                {c.nombre}
+              </label>
             ))}
-          </select>
+          </div>
         )}
         {esDueno && rol !== "dueno" && (
           <div className="flex gap-4 rounded-lg border border-stone-200 px-3 py-2.5">
@@ -307,9 +320,11 @@ export default function UsuariosAdmin({
                     <p className={`truncate font-medium ${u.activo ? "text-stone-900" : "text-stone-400 line-through"}`}>
                       {u.nombre}
                     </p>
-                    {esDueno && (
-                      <span className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">{u.campo_nombre}</span>
-                    )}
+                    {esDueno && u.campo_nombres.map((nombreCampo) => (
+                      <span key={nombreCampo} className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">
+                        {nombreCampo}
+                      </span>
+                    ))}
                     {esDueno && u.rol !== "dueno" && u.modulos.map((m) => (
                       <span key={m} className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
                         {ETIQUETA_MODULO[m]}
@@ -447,18 +462,20 @@ export default function UsuariosAdmin({
 
             {esDueno && rolEdit !== "dueno" && (
               <div>
-                <label className="block text-sm font-medium text-stone-700">Campo</label>
-                <select
-                  value={campoIdEdit}
-                  onChange={(e) => setCampoIdEdit(e.target.value)}
-                  required
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-                >
-                  <option value="" disabled>Elegir...</option>
+                <label className="block text-sm font-medium text-stone-700">Campo(s)</label>
+                <div className="mt-1 flex flex-wrap gap-4 rounded-lg border border-stone-300 px-3 py-2.5">
                   {campos.map((c) => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                    <label key={c.id} className="flex items-center gap-1.5 text-sm text-stone-700">
+                      <input
+                        type="checkbox"
+                        checked={camposIdsEdit.includes(c.id)}
+                        onChange={() => setCamposIdsEdit((actual) => toggleId(actual, c.id))}
+                        className="h-4 w-4 rounded border-stone-300 accent-brand-700"
+                      />
+                      {c.nombre}
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
             )}
 

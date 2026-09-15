@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { obtenerCampoActual } from "@/lib/campo";
 import { normalizarUsuarioAEmail } from "@/lib/usuario";
+import type { Rol } from "@/lib/types";
 
 const ROLES_VALIDOS = ["tractorista", "gerente", "encargado", "dueno"];
 const ROLES_QUE_ENCARGADO_PUEDE_ASIGNAR = ["tractorista", "gerente", "encargado"];
@@ -23,13 +25,10 @@ async function verificarPermiso() {
   let campoId: string | null = null;
 
   if (!esDueno) {
-    const { data: uc } = await supabase
-      .from("usuarios_campos")
-      .select("campo_id")
-      .eq("usuario_id", user.id)
-      .limit(1)
-      .maybeSingle();
-    campoId = uc?.campo_id ?? null;
+    // Un encargado puede pertenecer a más de un campo: se usa el que tiene
+    // seleccionado ahora mismo (mismo criterio que el resto de la app).
+    const { campo } = await obtenerCampoActual(user.id, profile.rol as Rol);
+    campoId = campo?.id ?? null;
 
     // Gestionar usuarios es parte del módulo Alimentos: un administrador de
     // sólo Materiales (ej. el de "Las Isletas") no puede tocar esto.
@@ -61,7 +60,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: chequeo.status });
   }
 
-  const { email, password, nombre, rol, campoId: campoIdBody, modulos: modulosBody } = await request.json();
+  const { email, password, nombre, rol, campoIds: campoIdsBody, modulos: modulosBody } = await request.json();
 
   if (!email || !password || !nombre || !rol) {
     return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
@@ -86,12 +85,21 @@ export async function POST(request: Request) {
     modulos = modulosBody;
   }
 
-  // A qué campo queda asignado (no aplica si el nuevo usuario es Dueño).
-  let campoId: string | null = null;
+  // A qué campo(s) queda asignado (no aplica si el nuevo usuario es Dueño).
+  // El dueño puede elegir uno o varios; un encargado sólo puede asignar
+  // gente a su propio campo (el que tiene seleccionado ahora mismo).
+  let campoIds: string[] = [];
   if (rol !== "dueno") {
-    campoId = chequeo.esDueno ? campoIdBody ?? null : chequeo.campoId;
-    if (!campoId) {
-      return NextResponse.json({ error: "Falta elegir el campo" }, { status: 400 });
+    if (chequeo.esDueno) {
+      if (!Array.isArray(campoIdsBody) || campoIdsBody.length === 0) {
+        return NextResponse.json({ error: "Elegí a qué campo(s) pertenece" }, { status: 400 });
+      }
+      campoIds = campoIdsBody;
+    } else {
+      if (!chequeo.campoId) {
+        return NextResponse.json({ error: "Falta elegir el campo" }, { status: 400 });
+      }
+      campoIds = [chequeo.campoId];
     }
   }
 
@@ -117,8 +125,8 @@ export async function POST(request: Request) {
   // para asegurarnos de que nombre y rol queden exactamente como los cargó el admin.
   await admin.from("profiles").upsert({ id: data.user.id, nombre, rol, activo: true });
 
-  if (campoId) {
-    await admin.from("usuarios_campos").insert({ usuario_id: data.user.id, campo_id: campoId });
+  if (campoIds.length > 0) {
+    await admin.from("usuarios_campos").insert(campoIds.map((campo_id) => ({ usuario_id: data.user.id, campo_id })));
   }
 
   if (rol !== "dueno") {
@@ -134,7 +142,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: chequeo.status });
   }
 
-  const { id, activo, rol, nombre, email, password, campoId: nuevoCampoId, modulos: modulosBody } = await request.json();
+  const { id, activo, rol, nombre, email, password, campoIds: nuevosCampoIds, modulos: modulosBody } = await request.json();
   if (!id) {
     return NextResponse.json({ error: "Falta id" }, { status: 400 });
   }
@@ -146,6 +154,13 @@ export async function PATCH(request: Request) {
   }
   if (rol && !chequeo.esDueno && !ROLES_QUE_ENCARGADO_PUEDE_ASIGNAR.includes(rol)) {
     return NextResponse.json({ error: "No podés asignar ese rol" }, { status: 403 });
+  }
+  if (
+    nuevosCampoIds !== undefined &&
+    rol !== "dueno" &&
+    (!Array.isArray(nuevosCampoIds) || nuevosCampoIds.length === 0)
+  ) {
+    return NextResponse.json({ error: "Elegí a qué campo(s) pertenece" }, { status: 400 });
   }
   if (modulosBody !== undefined && !chequeo.esDueno) {
     return NextResponse.json({ error: "Sólo el Dueño puede cambiar los módulos" }, { status: 403 });
@@ -187,7 +202,7 @@ export async function PATCH(request: Request) {
   if (rol) cambios.rol = rol;
   if (typeof nombre === "string" && nombre.trim()) cambios.nombre = nombre.trim();
 
-  if (Object.keys(cambios).length === 0 && !email && !password && !nuevoCampoId) {
+  if (Object.keys(cambios).length === 0 && !email && !password && !nuevosCampoIds) {
     return NextResponse.json({ error: "Nada para actualizar" }, { status: 400 });
   }
 
@@ -198,11 +213,13 @@ export async function PATCH(request: Request) {
     }
   }
 
-  // Sólo el dueño puede reasignar de campo (o quitarlo, si lo ascendió a Dueño).
-  if (chequeo.esDueno && (nuevoCampoId || rol === "dueno")) {
+  // Sólo el dueño puede reasignar de campo(s) (o quitarlos, si lo ascendió a Dueño).
+  if (chequeo.esDueno && (nuevosCampoIds || rol === "dueno")) {
     await admin.from("usuarios_campos").delete().eq("usuario_id", id);
-    if (nuevoCampoId && rol !== "dueno") {
-      await admin.from("usuarios_campos").insert({ usuario_id: id, campo_id: nuevoCampoId });
+    if (nuevosCampoIds && rol !== "dueno") {
+      await admin.from("usuarios_campos").insert(
+        (nuevosCampoIds as string[]).map((campo_id) => ({ usuario_id: id, campo_id })),
+      );
     }
   }
 

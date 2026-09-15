@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Campo } from "@/lib/types";
 
-/** Sólo para el Dueño: elegir con qué campo está trabajando ahora. */
+/** Elegir con cuál de los campos propios está trabajando ahora (aparece
+ * apenas la persona pertenece a más de uno). */
 export default function CampoSelector({ campos, campoActualId }: { campos: Campo[]; campoActualId: string }) {
   const router = useRouter();
   const [cambiando, setCambiando] = useState(false);

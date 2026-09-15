@@ -79,12 +79,13 @@ export default function Nav({
     </span>
   );
 
-  const selectorCampo =
-    rol === "dueno" ? (
-      campos.length > 0 && campo ? <CampoSelector campos={campos} campoActualId={campo.id} /> : null
-    ) : campo ? (
-      <span className="rounded-lg bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">{campo.nombre}</span>
-    ) : null;
+  // Cualquiera puede pertenecer a más de un campo ahora: el selector aparece
+  // apenas hay más de uno, sea Dueño o no.
+  const selectorCampo = !campo
+    ? null
+    : campos.length > 1
+      ? <CampoSelector campos={campos} campoActualId={campo.id} />
+      : <span className="rounded-lg bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">{campo.nombre}</span>;
 
   return (
     <header className="relative border-b border-stone-200 bg-white">
