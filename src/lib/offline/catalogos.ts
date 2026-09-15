@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import type { Alimento, Lote, Material } from "@/lib/types";
+import type { Alimento, Contratista, Lote, LoteMaterial, Material, Proveedor } from "@/lib/types";
 
 async function conCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
   try {
@@ -55,5 +55,50 @@ export async function getMaterialesActivos(campoId: string): Promise<Material[]>
       .order("nombre");
     if (error) throw error;
     return data as Material[];
+  });
+}
+
+/** Proveedores activos del campo (módulo Stock de materiales). */
+export async function getProveedoresActivos(campoId: string): Promise<Proveedor[]> {
+  return conCache(`app-raciones:cache:proveedores:${campoId}`, async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("proveedores")
+      .select("*")
+      .eq("campo_id", campoId)
+      .eq("activo", true)
+      .order("nombre");
+    if (error) throw error;
+    return data as Proveedor[];
+  });
+}
+
+/** Contratistas activos del campo (módulo Stock de materiales). */
+export async function getContratistasActivos(campoId: string): Promise<Contratista[]> {
+  return conCache(`app-raciones:cache:contratistas:${campoId}`, async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("contratistas")
+      .select("*")
+      .eq("campo_id", campoId)
+      .eq("activo", true)
+      .order("nombre");
+    if (error) throw error;
+    return data as Contratista[];
+  });
+}
+
+/** Lotes (del módulo Materiales, separados de los de Alimentos) activos del campo. */
+export async function getLotesMaterialesActivos(campoId: string): Promise<LoteMaterial[]> {
+  return conCache(`app-raciones:cache:lotes_materiales:${campoId}`, async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("lotes_materiales")
+      .select("*")
+      .eq("campo_id", campoId)
+      .eq("activo", true)
+      .order("nombre");
+    if (error) throw error;
+    return data as LoteMaterial[];
   });
 }

@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { getMaterialesActivos } from "@/lib/offline/catalogos";
-import type { Material, TipoMovimiento } from "@/lib/types";
+import {
+  getContratistasActivos,
+  getLotesMaterialesActivos,
+  getMaterialesActivos,
+  getProveedoresActivos,
+} from "@/lib/offline/catalogos";
+import type { Contratista, LoteMaterial, Material, Proveedor, TipoMovimiento } from "@/lib/types";
 
 function hoyISO() {
   const d = new Date();
@@ -13,11 +18,17 @@ function hoyISO() {
 
 export default function MovimientoForm({ userId, campoId }: { userId: string; campoId: string }) {
   const [materiales, setMateriales] = useState<Material[]>([]);
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [contratistas, setContratistas] = useState<Contratista[]>([]);
+  const [lotesMateriales, setLotesMateriales] = useState<LoteMaterial[]>([]);
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
 
   const [fecha, setFecha] = useState(hoyISO());
   const [tipo, setTipo] = useState<TipoMovimiento>("entrada");
   const [materialId, setMaterialId] = useState("");
+  const [proveedorId, setProveedorId] = useState("");
+  const [contratistaId, setContratistaId] = useState("");
+  const [loteMaterialId, setLoteMaterialId] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState("unidades");
   const [observaciones, setObservaciones] = useState("");
@@ -27,17 +38,40 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
   const [revisando, setRevisando] = useState(false);
 
   useEffect(() => {
-    getMaterialesActivos(campoId)
-      .then(setMateriales)
+    Promise.all([
+      getMaterialesActivos(campoId),
+      getProveedoresActivos(campoId),
+      getContratistasActivos(campoId),
+      getLotesMaterialesActivos(campoId),
+    ])
+      .then(([m, p, c, l]) => {
+        setMateriales(m);
+        setProveedores(p);
+        setContratistas(c);
+        setLotesMateriales(l);
+      })
       .catch(() => {
-        setMensaje({ tipo: "error", texto: "No se pudieron cargar los materiales. Volvé a intentar." });
+        setMensaje({ tipo: "error", texto: "No se pudieron cargar los datos. Volvé a intentar." });
       })
       .finally(() => setCargandoCatalogos(false));
   }, [campoId]);
 
+  function elegirTipo(nuevo: TipoMovimiento) {
+    setTipo(nuevo);
+    if (nuevo === "entrada") {
+      setContratistaId("");
+      setLoteMaterialId("");
+    } else {
+      setProveedorId("");
+    }
+  }
+
   function limpiarFormulario() {
     setCantidad("");
     setObservaciones("");
+    setProveedorId("");
+    setContratistaId("");
+    setLoteMaterialId("");
     setRevisando(false);
   }
 
@@ -45,6 +79,8 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
     e.preventDefault();
     setMensaje(null);
     if (!materialId || !cantidad) return;
+    if (tipo === "entrada" && !proveedorId) return;
+    if (tipo === "salida" && (!contratistaId || !loteMaterialId)) return;
     setRevisando(true);
   }
 
@@ -59,6 +95,9 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
       tipo,
       cantidad: Number(cantidad),
       unidad,
+      proveedor_id: tipo === "entrada" ? proveedorId : null,
+      contratista_id: tipo === "salida" ? contratistaId : null,
+      lote_material_id: tipo === "salida" ? loteMaterialId : null,
       observaciones: observaciones.trim() || null,
       cargado_por: userId,
     });
@@ -81,27 +120,62 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
   if (materiales.length === 0) {
     return (
       <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
-        Todavía no hay materiales cargados. Pedile al administrador que los cree en Administración
+        Todavía no hay materiales cargados. Pedile al administrador que los cree en Base de datos
         antes de registrar movimientos.
+      </p>
+    );
+  }
+
+  if (tipo === "entrada" && proveedores.length === 0) {
+    return (
+      <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+        Todavía no hay proveedores cargados. Pedile al administrador que los cree en Base de datos
+        antes de registrar una entrada.
+      </p>
+    );
+  }
+
+  if (tipo === "salida" && (contratistas.length === 0 || lotesMateriales.length === 0)) {
+    return (
+      <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+        Todavía no hay {contratistas.length === 0 ? "contratistas" : "lotes"} cargados. Pedile al
+        administrador que los cree en Base de datos antes de registrar una salida.
       </p>
     );
   }
 
   if (revisando) {
     const nombreMaterial = materiales.find((m) => m.id === materialId)?.nombre ?? "—";
+    const nombreProveedor = proveedores.find((p) => p.id === proveedorId)?.nombre ?? "—";
+    const nombreContratista = contratistas.find((c) => c.id === contratistaId)?.nombre ?? "—";
+    const nombreLote = lotesMateriales.find((l) => l.id === loteMaterialId)?.nombre ?? "—";
+
+    const filas =
+      tipo === "entrada"
+        ? [
+            ["Fecha", fecha],
+            ["Tipo", "Entrada"],
+            ["Material", nombreMaterial],
+            ["Proveedor", nombreProveedor],
+            ["Cantidad", `${cantidad} ${unidad}`],
+            ["Observaciones", observaciones.trim() || "—"],
+          ]
+        : [
+            ["Fecha", fecha],
+            ["Tipo", "Salida"],
+            ["Material", nombreMaterial],
+            ["Contratista", nombreContratista],
+            ["Lote destino", nombreLote],
+            ["Cantidad", `${cantidad} ${unidad}`],
+            ["Observaciones", observaciones.trim() || "—"],
+          ];
 
     return (
       <div className="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
         <h2 className="text-sm font-medium text-stone-500">Revisá antes de enviar</h2>
 
         <dl className="divide-y divide-stone-100 rounded-lg border border-stone-200">
-          {[
-            ["Fecha", fecha],
-            ["Tipo", tipo === "entrada" ? "Entrada" : "Salida"],
-            ["Material", nombreMaterial],
-            ["Cantidad", `${cantidad} ${unidad}`],
-            ["Observaciones", observaciones.trim() || "—"],
-          ].map(([label, valor]) => (
+          {filas.map(([label, valor]) => (
             <div key={label} className="flex justify-between px-4 py-2.5 text-sm">
               <dt className="text-stone-500">{label}</dt>
               <dd className="font-medium text-stone-900">{valor}</dd>
@@ -148,7 +222,7 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
         <div className="mt-1 grid grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={() => setTipo("entrada")}
+            onClick={() => elegirTipo("entrada")}
             className={`rounded-lg border px-3 py-2.5 text-base font-medium ${
               tipo === "entrada"
                 ? "border-emerald-600 bg-emerald-50 text-emerald-800"
@@ -159,7 +233,7 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
           </button>
           <button
             type="button"
-            onClick={() => setTipo("salida")}
+            onClick={() => elegirTipo("salida")}
             className={`rounded-lg border px-3 py-2.5 text-base font-medium ${
               tipo === "salida"
                 ? "border-amber-600 bg-amber-50 text-amber-800"
@@ -196,6 +270,55 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
           ))}
         </select>
       </div>
+
+      {tipo === "entrada" ? (
+        <div>
+          <label className="block text-sm font-medium text-stone-700">Proveedor</label>
+          <select
+            required
+            value={proveedorId}
+            onChange={(e) => setProveedorId(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+          >
+            <option value="" disabled>Elegir...</option>
+            {proveedores.map((p) => (
+              <option key={p.id} value={p.id}>{p.nombre}</option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <>
+          <div>
+            <label className="block text-sm font-medium text-stone-700">Contratista</label>
+            <select
+              required
+              value={contratistaId}
+              onChange={(e) => setContratistaId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+            >
+              <option value="" disabled>Elegir...</option>
+              {contratistas.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700">Lote destino</label>
+            <select
+              required
+              value={loteMaterialId}
+              onChange={(e) => setLoteMaterialId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+            >
+              <option value="" disabled>Elegir...</option>
+              {lotesMateriales.map((l) => (
+                <option key={l.id} value={l.id}>{l.nombre}</option>
+              ))}
+            </select>
+          </div>
+        </>
+      )}
 
       <div className="flex gap-3">
         <div className="flex-1">

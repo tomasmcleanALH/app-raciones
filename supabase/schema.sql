@@ -133,10 +133,40 @@ create table if not exists public.materiales (
   unique (campo_id, nombre)
 );
 
--- Entrada (ingresó material) o salida (se retiró/consumió). El stock
+-- Proveedores (de quién entra el material) y Contratistas (a quién
+-- se le entrega en una salida), y una lista de Lotes PROPIA del
+-- módulo Materiales -- separada a propósito de la de Alimentos.
+create table if not exists public.proveedores (
+  id uuid primary key default gen_random_uuid(),
+  campo_id uuid not null references public.campos (id),
+  nombre text not null,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (campo_id, nombre)
+);
+
+create table if not exists public.contratistas (
+  id uuid primary key default gen_random_uuid(),
+  campo_id uuid not null references public.campos (id),
+  nombre text not null,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (campo_id, nombre)
+);
+
+create table if not exists public.lotes_materiales (
+  id uuid primary key default gen_random_uuid(),
+  campo_id uuid not null references public.campos (id),
+  nombre text not null,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (campo_id, nombre)
+);
+
+-- Entrada (ingresó material, de un Proveedor) o salida (se retiró/
+-- consumió, para un Contratista en un Lote destino). El stock
 -- disponible de cada material se calcula sumando entradas y
--- restando salidas (no tiene un destino/ubicación propio, a
--- diferencia del lote en Alimentos).
+-- restando salidas.
 create table if not exists public.movimientos_stock (
   id uuid primary key default gen_random_uuid(),
   fecha date not null,
@@ -144,9 +174,17 @@ create table if not exists public.movimientos_stock (
   tipo text not null check (tipo in ('entrada', 'salida')),
   cantidad numeric(10, 2) not null check (cantidad > 0),
   unidad text not null default 'unidades',
+  proveedor_id uuid references public.proveedores (id),
+  contratista_id uuid references public.contratistas (id),
+  lote_material_id uuid references public.lotes_materiales (id),
   observaciones text,
   cargado_por uuid not null references public.profiles (id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint movimientos_stock_campos_por_tipo check (
+    (tipo = 'entrada' and proveedor_id is not null and contratista_id is null and lote_material_id is null)
+    or
+    (tipo = 'salida' and contratista_id is not null and lote_material_id is not null and proveedor_id is null)
+  )
 );
 
 create index if not exists movimientos_stock_fecha_idx on public.movimientos_stock (fecha desc);
@@ -265,6 +303,9 @@ alter table public.lotes enable row level security;
 alter table public.alimentos enable row level security;
 alter table public.entregas enable row level security;
 alter table public.materiales enable row level security;
+alter table public.proveedores enable row level security;
+alter table public.contratistas enable row level security;
+alter table public.lotes_materiales enable row level security;
 alter table public.movimientos_stock enable row level security;
 
 -- profiles: se ve a sí mismo y a quien comparta campo con él/ella;
@@ -440,6 +481,76 @@ create policy materiales_select on public.materiales
 
 drop policy if exists materiales_modificar on public.materiales;
 create policy materiales_modificar on public.materiales
+  for all to authenticated
+  using (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  )
+  with check (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  );
+
+-- proveedores/contratistas/lotes_materiales: mismo esquema que materiales
+drop policy if exists proveedores_select on public.proveedores;
+create policy proveedores_select on public.proveedores
+  for select to authenticated
+  using (
+    public.tiene_acceso_a_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  );
+
+drop policy if exists proveedores_modificar on public.proveedores;
+create policy proveedores_modificar on public.proveedores
+  for all to authenticated
+  using (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  )
+  with check (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  );
+
+drop policy if exists contratistas_select on public.contratistas;
+create policy contratistas_select on public.contratistas
+  for select to authenticated
+  using (
+    public.tiene_acceso_a_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  );
+
+drop policy if exists contratistas_modificar on public.contratistas;
+create policy contratistas_modificar on public.contratistas
+  for all to authenticated
+  using (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  )
+  with check (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  );
+
+drop policy if exists lotes_materiales_select on public.lotes_materiales;
+create policy lotes_materiales_select on public.lotes_materiales
+  for select to authenticated
+  using (
+    public.tiene_acceso_a_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  );
+
+drop policy if exists lotes_materiales_modificar on public.lotes_materiales;
+create policy lotes_materiales_modificar on public.lotes_materiales
   for all to authenticated
   using (
     public.es_admin_de_campo(campo_id)

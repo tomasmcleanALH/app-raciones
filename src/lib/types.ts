@@ -66,6 +66,31 @@ export interface Material {
   created_at: string;
 }
 
+export interface Proveedor {
+  id: string;
+  campo_id: string;
+  nombre: string;
+  activo: boolean;
+  created_at: string;
+}
+
+export interface Contratista {
+  id: string;
+  campo_id: string;
+  nombre: string;
+  activo: boolean;
+  created_at: string;
+}
+
+/** Lista de lotes propia del módulo Materiales (separada de la de Alimentos). */
+export interface LoteMaterial {
+  id: string;
+  campo_id: string;
+  nombre: string;
+  activo: boolean;
+  created_at: string;
+}
+
 export type TipoMovimiento = "entrada" | "salida";
 
 export interface MovimientoStock {
@@ -75,6 +100,12 @@ export interface MovimientoStock {
   tipo: TipoMovimiento;
   cantidad: number;
   unidad: string;
+  /** Sólo en entradas. */
+  proveedor_id: string | null;
+  /** Sólo en salidas. */
+  contratista_id: string | null;
+  /** Sólo en salidas. */
+  lote_material_id: string | null;
   observaciones: string | null;
   cargado_por: string;
   created_at: string;
@@ -83,5 +114,8 @@ export interface MovimientoStock {
 /** Movimiento de stock con los nombres ya resueltos, para mostrar en la grilla. */
 export interface MovimientoStockConNombres extends MovimientoStock {
   material_nombre: string;
+  proveedor_nombre: string | null;
+  contratista_nombre: string | null;
+  lote_material_nombre: string | null;
   cargado_por_nombre: string;
 }

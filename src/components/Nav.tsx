@@ -45,7 +45,7 @@ export default function Nav({
           { href: "/stock", label: "Stock" },
           { href: "/stock/historial", label: "Historial de movimientos" },
           { href: "/stock/cargar", label: "Cargar movimiento" },
-          { href: "/admin/materiales", label: "Materiales" },
+          { href: "/admin/base-datos", label: "Base de datos" },
         ]
       : [{ href: "/stock/cargar", label: "Cargar movimiento" }];
 

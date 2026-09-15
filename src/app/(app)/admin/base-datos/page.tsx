@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import CatalogoAdmin from "@/components/CatalogoAdmin";
+import BaseDeDatosMateriales from "@/components/BaseDeDatosMateriales";
 import { requireEncargadoOGerente } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
 import { obtenerModulosEfectivos } from "@/lib/modulos";
 
-export default async function MaterialesAdminPage() {
+export default async function BaseDeDatosPage() {
   const { userId, profile } = await requireEncargadoOGerente();
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
@@ -22,9 +22,7 @@ export default async function MaterialesAdminPage() {
   if (!modulos.includes("materiales")) redirect("/");
 
   return (
-    <CatalogoAdmin
-      tabla="materiales"
-      titulo="Materiales"
+    <BaseDeDatosMateriales
       campoId={campo.id}
       soloLectura={profile.rol !== "encargado" && profile.rol !== "dueno"}
     />

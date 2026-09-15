@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
-import type { Material, Profile, TipoMovimiento } from "@/lib/types";
+import type { Contratista, LoteMaterial, Material, Profile, Proveedor, TipoMovimiento } from "@/lib/types";
 
 interface FilaGrilla {
   id: string;
@@ -12,6 +12,12 @@ interface FilaGrilla {
   tipo: TipoMovimiento;
   cantidad: number;
   unidad: string;
+  proveedor_id: string | null;
+  contratista_id: string | null;
+  lote_material_id: string | null;
+  proveedor_nombre: string | null;
+  contratista_nombre: string | null;
+  lote_material_nombre: string | null;
   observaciones: string | null;
   created_at: string;
   material_nombre: string;
@@ -25,12 +31,18 @@ interface MovimientoEditable {
   tipo: TipoMovimiento;
   cantidad: string;
   unidad: string;
+  proveedor_id: string;
+  contratista_id: string;
+  lote_material_id: string;
   observaciones: string;
 }
 
 export default function MovimientosStockTable({ campoId, puedeEditar = true }: { campoId: string; puedeEditar?: boolean }) {
   const [filas, setFilas] = useState<FilaGrilla[]>([]);
   const [materiales, setMateriales] = useState<Material[]>([]);
+  const [proveedores, setProveedores] = useState<Proveedor[]>([]);
+  const [contratistas, setContratistas] = useState<Contratista[]>([]);
+  const [lotesMateriales, setLotesMateriales] = useState<LoteMaterial[]>([]);
   const [usuarios, setUsuarios] = useState<Profile[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,13 +67,19 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
     const supabase = createClient();
     Promise.all([
       supabase.from("materiales").select("*").eq("campo_id", campoId).order("nombre"),
+      supabase.from("proveedores").select("*").eq("campo_id", campoId).order("nombre"),
+      supabase.from("contratistas").select("*").eq("campo_id", campoId).order("nombre"),
+      supabase.from("lotes_materiales").select("*").eq("campo_id", campoId).order("nombre"),
       supabase
         .from("profiles")
         .select("*, usuarios_campos!inner(campo_id), usuarios_modulos!inner(modulo)")
         .eq("usuarios_campos.campo_id", campoId)
         .eq("usuarios_modulos.modulo", "materiales"),
-    ]).then(([m, u]) => {
+    ]).then(([m, p, c, l, u]) => {
       setMateriales((m.data ?? []) as Material[]);
+      setProveedores((p.data ?? []) as Proveedor[]);
+      setContratistas((c.data ?? []) as Contratista[]);
+      setLotesMateriales((l.data ?? []) as LoteMaterial[]);
       setUsuarios(((u.data ?? []) as Profile[]).sort((a, b) => a.nombre.localeCompare(b.nombre)));
     });
   }, [campoId]);
@@ -74,7 +92,7 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
     let query = supabase
       .from("movimientos_stock")
       .select(
-        "id, fecha, cantidad, unidad, tipo, observaciones, created_at, material_id, materiales!inner(nombre, campo_id), profiles(nombre)",
+        "id, fecha, cantidad, unidad, tipo, observaciones, created_at, material_id, proveedor_id, contratista_id, lote_material_id, materiales!inner(nombre, campo_id), proveedores(nombre), contratistas(nombre), lotes_materiales(nombre), profiles(nombre)",
       )
       .eq("materiales.campo_id", campoId)
       .order("fecha", { ascending: false })
@@ -102,6 +120,12 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
         tipo: m.tipo,
         cantidad: m.cantidad,
         unidad: m.unidad,
+        proveedor_id: m.proveedor_id,
+        contratista_id: m.contratista_id,
+        lote_material_id: m.lote_material_id,
+        proveedor_nombre: m.proveedores?.nombre ?? null,
+        contratista_nombre: m.contratistas?.nombre ?? null,
+        lote_material_nombre: m.lotes_materiales?.nombre ?? null,
         observaciones: m.observaciones,
         created_at: m.created_at,
         material_nombre: m.materiales?.nombre ?? "—",
@@ -116,7 +140,13 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
     cargarMovimientos();
   }, [cargarMovimientos]);
 
-  const totalColumnas = puedeEditar ? 9 : 8;
+  const totalColumnas = puedeEditar ? 10 : 9;
+
+  function detalle(f: Pick<FilaGrilla, "tipo" | "proveedor_nombre" | "contratista_nombre" | "lote_material_nombre">) {
+    return f.tipo === "entrada"
+      ? `Proveedor: ${f.proveedor_nombre ?? "—"}`
+      : `Contratista: ${f.contratista_nombre ?? "—"} · Lote: ${f.lote_material_nombre ?? "—"}`;
+  }
 
   /** El menú "⋮" se posiciona con position:fixed (según el botón que lo abrió)
    * en vez de absolute, para que no quede recortado por el scroll horizontal
@@ -144,8 +174,20 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
       tipo: f.tipo,
       cantidad: String(f.cantidad),
       unidad: f.unidad,
+      proveedor_id: f.proveedor_id ?? "",
+      contratista_id: f.contratista_id ?? "",
+      lote_material_id: f.lote_material_id ?? "",
       observaciones: f.observaciones ?? "",
     });
+  }
+
+  function elegirTipoEdicion(nuevo: TipoMovimiento) {
+    if (!editando) return;
+    setEditando(
+      nuevo === "entrada"
+        ? { ...editando, tipo: nuevo, contratista_id: "", lote_material_id: "" }
+        : { ...editando, tipo: nuevo, proveedor_id: "" },
+    );
   }
 
   async function guardarEdicion(e: React.FormEvent) {
@@ -163,6 +205,9 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
         tipo: editando.tipo,
         cantidad: Number(editando.cantidad),
         unidad: editando.unidad,
+        proveedor_id: editando.tipo === "entrada" ? editando.proveedor_id : null,
+        contratista_id: editando.tipo === "salida" ? editando.contratista_id : null,
+        lote_material_id: editando.tipo === "salida" ? editando.lote_material_id : null,
         observaciones: editando.observaciones.trim() || null,
       })
       .eq("id", editando.id);
@@ -211,6 +256,9 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
       "Fecha": f.fecha,
       "Material": f.material_nombre,
       "Tipo": f.tipo === "entrada" ? "Entrada" : "Salida",
+      "Proveedor": f.proveedor_nombre ?? "",
+      "Contratista": f.contratista_nombre ?? "",
+      "Lote destino": f.lote_material_nombre ?? "",
       "Cantidad": f.cantidad,
       "Unidad": f.unidad,
       "Cargado por": f.cargado_por_nombre,
@@ -220,7 +268,8 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
 
     const hoja = XLSX.utils.json_to_sheet(datos);
     hoja["!cols"] = [
-      { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 30 }, { wch: 18 },
+      { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
+      { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 30 }, { wch: 18 },
     ];
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, "Movimientos");
@@ -481,6 +530,7 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
                 <div className="mt-2 space-y-1 pl-6 text-stone-700">
                   <p><span className="text-stone-500">Material:</span> {f.material_nombre}</p>
                   <p><span className="text-stone-500">Cantidad:</span> {f.cantidad} {f.unidad}</p>
+                  <p>{detalle(f)}</p>
                   <p><span className="text-stone-500">Cargado por:</span> {f.cargado_por_nombre}</p>
                   {f.observaciones && (
                     <p><span className="text-stone-500">Observaciones:</span> {f.observaciones}</p>
@@ -497,7 +547,7 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
 
       {/* Escritorio: tabla */}
       <div className="hidden overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-stone-200 md:block">
-        <table className="w-full min-w-[700px] text-sm">
+        <table className="w-full min-w-[860px] text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
               <th className="w-10 px-4 py-2.5">
@@ -512,6 +562,7 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
               <th className="px-4 py-2.5 font-medium">Fecha</th>
               <th className="px-4 py-2.5 font-medium">Material</th>
               <th className="px-4 py-2.5 font-medium">Tipo</th>
+              <th className="px-4 py-2.5 font-medium">Detalle</th>
               <th className="px-4 py-2.5 font-medium">Cantidad</th>
               <th className="px-4 py-2.5 font-medium">Cargado por</th>
               <th className="px-4 py-2.5 font-medium">Observaciones</th>
@@ -548,6 +599,7 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
                   <td className="px-4 py-2.5">{f.fecha}</td>
                   <td className="px-4 py-2.5">{f.material_nombre}</td>
                   <td className="px-4 py-2.5">{badgeTipo(f.tipo)}</td>
+                  <td className="px-4 py-2.5 text-stone-500">{detalle(f)}</td>
                   <td className="px-4 py-2.5">{f.cantidad} {f.unidad}</td>
                   <td className="px-4 py-2.5">{f.cargado_por_nombre}</td>
                   <td className="px-4 py-2.5 text-stone-500">{f.observaciones ?? ""}</td>
@@ -634,7 +686,7 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
               <label className="block text-sm font-medium text-stone-700">Tipo</label>
               <select
                 value={editando.tipo}
-                onChange={(e) => setEditando({ ...editando, tipo: e.target.value as TipoMovimiento })}
+                onChange={(e) => elegirTipoEdicion(e.target.value as TipoMovimiento)}
                 className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
               >
                 <option value="entrada">Entrada</option>
@@ -666,6 +718,55 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
                 ))}
               </select>
             </div>
+
+            {editando.tipo === "entrada" ? (
+              <div>
+                <label className="block text-sm font-medium text-stone-700">Proveedor</label>
+                <select
+                  required
+                  value={editando.proveedor_id}
+                  onChange={(e) => setEditando({ ...editando, proveedor_id: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+                >
+                  <option value="" disabled>Elegir...</option>
+                  {proveedores.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700">Contratista</label>
+                  <select
+                    required
+                    value={editando.contratista_id}
+                    onChange={(e) => setEditando({ ...editando, contratista_id: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+                  >
+                    <option value="" disabled>Elegir...</option>
+                    {contratistas.map((c) => (
+                      <option key={c.id} value={c.id}>{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-stone-700">Lote destino</label>
+                  <select
+                    required
+                    value={editando.lote_material_id}
+                    onChange={(e) => setEditando({ ...editando, lote_material_id: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+                  >
+                    <option value="" disabled>Elegir...</option>
+                    {lotesMateriales.map((l) => (
+                      <option key={l.id} value={l.id}>{l.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
 
             <div className="flex gap-3">
               <div className="flex-1">
