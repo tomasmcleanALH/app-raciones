@@ -48,10 +48,14 @@ export default function Nav({
         ]
       : [{ href: "/stock/cargar", label: "Cargar movimiento" }];
 
+  // Gestionar usuarios es parte del módulo Alimentos: un administrador de
+  // sólo Materiales (ej. el de "Las Isletas") no ve esta solapa.
   const links = [
     ...linksAlimentos,
     ...linksMateriales,
-    ...(rol === "encargado" || rol === "dueno" ? [{ href: "/admin/usuarios", label: "Usuarios" }] : []),
+    ...((rol === "encargado" && modulos.includes("alimentos")) || rol === "dueno"
+      ? [{ href: "/admin/usuarios", label: "Usuarios" }]
+      : []),
     ...(rol === "dueno" ? [{ href: "/admin/campos", label: "Campos" }] : []),
   ];
 

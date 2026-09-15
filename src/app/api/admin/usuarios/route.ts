@@ -30,6 +30,15 @@ async function verificarPermiso() {
       .limit(1)
       .maybeSingle();
     campoId = uc?.campo_id ?? null;
+
+    // Gestionar usuarios es parte del módulo Alimentos: un administrador de
+    // sólo Materiales (ej. el de "Las Isletas") no puede tocar esto.
+    if (!campoId) return { ok: false as const, status: 403 };
+    const [{ data: modUsuario }, { data: modCampo }] = await Promise.all([
+      supabase.from("usuarios_modulos").select("modulo").eq("usuario_id", user.id).eq("modulo", "alimentos").maybeSingle(),
+      supabase.from("campo_modulos").select("modulo").eq("campo_id", campoId).eq("modulo", "alimentos").maybeSingle(),
+    ]);
+    if (!modUsuario || !modCampo) return { ok: false as const, status: 403 };
   }
 
   return { ok: true as const, userId: user.id, esDueno, campoId };
