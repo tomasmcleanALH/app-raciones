@@ -14,7 +14,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Nav
         nombre={profile.nombre}
         rol={profile.rol}
-        campo={campo}
         campos={campos}
         modulos={modulos}
         moduloActual={moduloActual}

@@ -8,8 +8,8 @@ export default async function ElegirSeccionPage() {
   const veTodo = ["encargado", "gerente", "dueno"].includes(profile.rol);
   if (!veTodo) redirect("/");
 
-  const { campo } = await obtenerCampoActual(userId, profile.rol);
+  const { campo, campos } = await obtenerCampoActual(userId, profile.rol);
   if (!campo) redirect("/elegir-campo");
 
-  return <ElegirSeccionTiles campoNombre={campo.nombre} />;
+  return <ElegirSeccionTiles campoNombre={campo.nombre} mostrarVolver={campos.length > 1} />;
 }

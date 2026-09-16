@@ -18,5 +18,12 @@ export default async function ElegirModuloPage() {
   if (modulos.length === 0) redirect("/");
   if (!veTodo && modulos.length <= 1) redirect("/");
 
-  return <ElegirModuloTiles modulos={modulos} campoNombre={campo.nombre} veTodo={veTodo} />;
+  return (
+    <ElegirModuloTiles
+      modulos={modulos}
+      campoNombre={campo.nombre}
+      veTodo={veTodo}
+      mostrarVolver={campos.length > 1}
+    />
+  );
 }

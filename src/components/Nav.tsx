@@ -10,18 +10,17 @@ import SyncStatusBadge from "./SyncStatusBadge";
 export default function Nav({
   nombre,
   rol,
-  campo,
   campos,
   modulos,
   moduloActual,
 }: {
   nombre: string;
   rol: Rol;
-  campo: Campo | null;
   campos: Campo[];
   modulos: Modulo[];
   /** Módulo que eligió en la pantalla de tiles: el Nav muestra sólo ése,
-   * no todos los que tiene habilitados (para eso está "Cambiar módulo"). */
+   * no todos los que tiene habilitados (antes estaba "Cambiar módulo" para
+   * verlos todos; ahora está la flecha de volver). */
   moduloActual: Modulo | null;
 }) {
   const pathname = usePathname();
@@ -55,13 +54,7 @@ export default function Nav({
           ]
       : [{ href: "/stock/cargar", label: "Cargar movimiento" }];
 
-  // Los módulos son lo de "Operaciones"; si tiene más de uno habilitado acá
-  // puede volver a elegir cuál quiere ver.
-  const linksModulos = [
-    ...linksAlimentos,
-    ...linksMateriales,
-    ...(modulos.length > 1 ? [{ href: "/elegir-modulo", label: "Cambiar módulo" }] : []),
-  ];
+  const linksModulos = [...linksAlimentos, ...linksMateriales];
 
   // Usuarios/Campos quedan separados de "Operaciones": son globales, no de
   // un módulo puntual (gestionar usuarios es parte del módulo Alimentos,
@@ -85,22 +78,21 @@ export default function Nav({
     </Link>
   );
 
-  // Cualquiera puede pertenecer a más de un campo ahora: el link para
-  // cambiar aparece apenas hay más de uno, sea Dueño o no. Cambiar de campo
-  // te lleva de vuelta a la pantalla de elegir campo, no es un switch en el
-  // momento.
-  const selectorCampo = !campo
-    ? null
-    : campos.length > 1
-      ? (
-          <Link
-            href="/elegir-campo"
-            className="rounded-lg bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600 hover:bg-stone-200"
-          >
-            {campo.nombre} ▾
-          </Link>
-        )
-      : <span className="rounded-lg bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">{campo.nombre}</span>;
+  // En vez de un selector de campo y un link de "Cambiar módulo" sueltos en
+  // la barra, una sola flecha para volver a la pantalla de elegir módulo
+  // (desde ahí se puede volver más atrás, a elegir campo).
+  const mostrarVolver = campos.length > 1 || modulos.length > 1;
+  const volver = mostrarVolver ? (
+    <Link
+      href="/elegir-modulo"
+      aria-label="Volver"
+      className="shrink-0 rounded-md p-1.5 text-stone-500 hover:bg-stone-100 hover:text-stone-800"
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 18l-6-6 6-6" />
+      </svg>
+    </Link>
+  ) : null;
 
   return (
     <header className="relative border-b border-stone-200 bg-white">
@@ -117,9 +109,9 @@ export default function Nav({
           </svg>
         </button>
 
-        <div className="shrink-0">{logo}</div>
+        {volver}
 
-        <div className="hidden shrink-0 md:block">{selectorCampo}</div>
+        <div className="shrink-0">{logo}</div>
 
         {/* Nav horizontal: sólo en pantallas medianas/grandes. Si no entran todos
             los links, se desliza horizontalmente en vez de pasar a otra línea. */}
@@ -171,7 +163,6 @@ export default function Nav({
             aria-label="Cerrar menú"
           />
           <div className="absolute inset-x-0 top-full z-30 border-b border-stone-200 bg-white shadow-lg md:hidden">
-            {selectorCampo && <div className="border-b border-stone-100 px-4 py-3">{selectorCampo}</div>}
             <nav className="flex flex-col p-2">
               {linksModulos.map((link) => (
                 <Link
