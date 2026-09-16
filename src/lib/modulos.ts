@@ -1,5 +1,8 @@
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { Modulo, Rol } from "@/lib/types";
+
+export const COOKIE_MODULO_ACTUAL = "modulo_actual";
 
 /**
  * A qué módulo(s) tiene acceso este usuario (sin importar el campo):
@@ -37,4 +40,19 @@ export async function obtenerModulosEfectivos(userId: string, rol: Rol, campoId:
     obtenerModulosCampo(campoId),
   ]);
   return modulosUsuario.filter((m) => modulosCampo.includes(m));
+}
+
+/**
+ * Qué módulo está "activo" en el Nav ahora mismo: el que eligió en la
+ * pantalla de tiles (cookie), o directamente el único que tiene si no hay
+ * ambigüedad. Sirve para que el Nav muestre sólo ese módulo y no todos los
+ * que tiene habilitados.
+ */
+export async function obtenerModuloActual(modulosEfectivos: Modulo[]): Promise<Modulo | null> {
+  if (modulosEfectivos.length === 0) return null;
+  if (modulosEfectivos.length === 1) return modulosEfectivos[0];
+
+  const cookieStore = await cookies();
+  const elegido = cookieStore.get(COOKIE_MODULO_ACTUAL)?.value as Modulo | undefined;
+  return elegido && modulosEfectivos.includes(elegido) ? elegido : modulosEfectivos[0];
 }

@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Campo, Modulo, Rol } from "@/lib/types";
 import BotonSalir from "./BotonSalir";
-import CampoSelector from "./CampoSelector";
 import SyncStatusBadge from "./SyncStatusBadge";
 
 export default function Nav({
@@ -14,12 +13,16 @@ export default function Nav({
   campo,
   campos,
   modulos,
+  moduloActual,
 }: {
   nombre: string;
   rol: Rol;
   campo: Campo | null;
   campos: Campo[];
   modulos: Modulo[];
+  /** Módulo que eligió en la pantalla de tiles: el Nav muestra sólo ése,
+   * no todos los que tiene habilitados (para eso está "Cambiar módulo"). */
+  moduloActual: Modulo | null;
 }) {
   const pathname = usePathname();
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -29,23 +32,27 @@ export default function Nav({
   const linksAlimentos = !modulos.includes("alimentos")
     ? []
     : veTodo
-      ? [
-          { href: "/alimentos", label: "Stock" },
-          { href: "/alimentos/historial", label: "Historial de movimientos" },
-          { href: "/entregar", label: "Cargar entrega" },
-          { href: "/admin/base-datos-alimentos", label: "Base de datos" },
-        ]
+      ? moduloActual !== "alimentos"
+        ? []
+        : [
+            { href: "/alimentos", label: "Stock" },
+            { href: "/alimentos/historial", label: "Historial de movimientos" },
+            { href: "/entregar", label: "Cargar entrega" },
+            { href: "/admin/base-datos-alimentos", label: "Base de datos" },
+          ]
       : [{ href: "/entregar", label: "Cargar entrega" }];
 
   const linksMateriales = !modulos.includes("materiales")
     ? []
     : veTodo
-      ? [
-          { href: "/stock", label: "Stock" },
-          { href: "/stock/historial", label: "Historial de movimientos" },
-          { href: "/stock/cargar", label: "Cargar movimiento" },
-          { href: "/admin/base-datos", label: "Base de datos" },
-        ]
+      ? moduloActual !== "materiales"
+        ? []
+        : [
+            { href: "/stock", label: "Stock" },
+            { href: "/stock/historial", label: "Historial de movimientos" },
+            { href: "/stock/cargar", label: "Cargar movimiento" },
+            { href: "/admin/base-datos", label: "Base de datos" },
+          ]
       : [{ href: "/stock/cargar", label: "Cargar movimiento" }];
 
   // Los módulos son lo de "Operaciones"; si tiene más de uno habilitado acá
@@ -78,12 +85,21 @@ export default function Nav({
     </Link>
   );
 
-  // Cualquiera puede pertenecer a más de un campo ahora: el selector aparece
-  // apenas hay más de uno, sea Dueño o no.
+  // Cualquiera puede pertenecer a más de un campo ahora: el link para
+  // cambiar aparece apenas hay más de uno, sea Dueño o no. Cambiar de campo
+  // te lleva de vuelta a la pantalla de elegir campo, no es un switch en el
+  // momento.
   const selectorCampo = !campo
     ? null
     : campos.length > 1
-      ? <CampoSelector campos={campos} campoActualId={campo.id} />
+      ? (
+          <Link
+            href="/elegir-campo"
+            className="rounded-lg bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600 hover:bg-stone-200"
+          >
+            {campo.nombre} ▾
+          </Link>
+        )
       : <span className="rounded-lg bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">{campo.nombre}</span>;
 
   return (

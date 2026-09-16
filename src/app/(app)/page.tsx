@@ -4,17 +4,18 @@ import { obtenerCampoActual, requiereElegirCampo } from "@/lib/campo";
 import { obtenerModulosEfectivos } from "@/lib/modulos";
 
 /**
- * "/" no es una pantalla en sí: resuelve Ingreso → Campo → Módulo y
- * redirige a donde corresponda (o muestra la pantalla de elegir cuando
- * hay más de una opción en algún paso).
+ * "/" no es una pantalla en sí: resuelve Ingreso → Campo → Sección →
+ * Módulo. Los roles de gestión siempre pasan por esa cadena de pantallas
+ * de elección, aunque haya una sola opción en cada paso; el que sólo
+ * carga (entregas o movimientos) va directo a su formulario, sin pantallas
+ * de por medio.
  */
 export default async function HomePage() {
   const { userId, profile } = await requireProfile();
+  const veTodo = ["encargado", "gerente", "dueno"].includes(profile.rol);
   const { campo, campos } = await obtenerCampoActual(userId, profile.rol);
 
-  if (await requiereElegirCampo(campos)) redirect("/elegir-campo");
-
-  if (!campo) {
+  if (campos.length === 0) {
     return (
       <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
         {profile.rol === "dueno"
@@ -23,6 +24,11 @@ export default async function HomePage() {
       </p>
     );
   }
+
+  if (veTodo) redirect("/elegir-campo");
+
+  if (await requiereElegirCampo(campos)) redirect("/elegir-campo");
+  if (!campo) redirect("/elegir-campo");
 
   const modulos = await obtenerModulosEfectivos(userId, profile.rol, campo.id);
 
@@ -35,10 +41,6 @@ export default async function HomePage() {
   }
 
   if (modulos.length > 1) redirect("/elegir-modulo");
-
-  // Los roles de gestión caen en la pantalla de Stock de su módulo; el que
-  // sólo carga (entregas o movimientos) va directo a su formulario.
-  const veTodo = ["encargado", "gerente", "dueno"].includes(profile.rol);
-  if (modulos[0] === "alimentos") redirect(veTodo ? "/alimentos" : "/entregar");
-  redirect(veTodo ? "/stock" : "/stock/cargar");
+  if (modulos[0] === "alimentos") redirect("/entregar");
+  redirect("/stock/cargar");
 }

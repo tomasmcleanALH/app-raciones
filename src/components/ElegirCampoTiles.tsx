@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Campo } from "@/lib/types";
 
-export default function ElegirCampoTiles({ campos }: { campos: Campo[] }) {
+export default function ElegirCampoTiles({ campos, veTodo }: { campos: Campo[]; veTodo: boolean }) {
   const router = useRouter();
   const [eligiendo, setEligiendo] = useState<string | null>(null);
 
@@ -15,12 +15,14 @@ export default function ElegirCampoTiles({ campos }: { campos: Campo[] }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ campoId }),
     });
-    router.push("/");
+    // Los roles de gestión siguen la cadena Campo → Sección → Módulo; el
+    // resto va directo a donde le corresponda (elegir-modulo lo resuelve).
+    router.push(veTodo ? "/elegir-seccion" : "/");
     router.refresh();
   }
 
   return (
-    <div className="grid flex-1 grid-cols-1 sm:grid-cols-2">
+    <div className={`grid flex-1 grid-cols-1 ${campos.length > 1 ? "sm:grid-cols-2" : ""}`}>
       {campos.map((c, i) => (
         <button
           key={c.id}
