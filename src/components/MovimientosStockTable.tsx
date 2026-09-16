@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
+import BuscarSelect from "./BuscarSelect";
 import { createClient } from "@/lib/supabase/client";
 import type { Contratista, LoteMaterial, Material, Profile, Proveedor, TipoMovimiento } from "@/lib/types";
 
@@ -49,6 +50,8 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
 
   const [filtroMaterial, setFiltroMaterial] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroProveedor, setFiltroProveedor] = useState("");
+  const [filtroContratista, setFiltroContratista] = useState("");
   const [filtroUsuario, setFiltroUsuario] = useState("");
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
@@ -100,6 +103,8 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
 
     if (filtroMaterial) query = query.eq("material_id", filtroMaterial);
     if (filtroTipo) query = query.eq("tipo", filtroTipo);
+    if (filtroProveedor) query = query.eq("proveedor_id", filtroProveedor);
+    if (filtroContratista) query = query.eq("contratista_id", filtroContratista);
     if (filtroUsuario) query = query.eq("cargado_por", filtroUsuario);
     if (filtroDesde) query = query.gte("fecha", filtroDesde);
     if (filtroHasta) query = query.lte("fecha", filtroHasta);
@@ -134,7 +139,7 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
     );
     setSeleccionados(new Set());
     setCargando(false);
-  }, [campoId, filtroMaterial, filtroTipo, filtroUsuario, filtroDesde, filtroHasta]);
+  }, [campoId, filtroMaterial, filtroTipo, filtroProveedor, filtroContratista, filtroUsuario, filtroDesde, filtroHasta]);
 
   useEffect(() => {
     cargarMovimientos();
@@ -278,7 +283,9 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
     XLSX.writeFile(libro, `historial-movimientos-${hoy}.xlsx`);
   }
 
-  const hayFiltrosActivos = !!(filtroMaterial || filtroTipo || filtroUsuario || filtroDesde || filtroHasta);
+  const hayFiltrosActivos = !!(
+    filtroMaterial || filtroTipo || filtroProveedor || filtroContratista || filtroUsuario || filtroDesde || filtroHasta
+  );
 
   const controlesFiltro = (
     <>
@@ -301,6 +308,28 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
         <option value="">Entradas y salidas</option>
         <option value="entrada">Sólo entradas</option>
         <option value="salida">Sólo salidas</option>
+      </select>
+
+      <select
+        value={filtroProveedor}
+        onChange={(e) => setFiltroProveedor(e.target.value)}
+        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+      >
+        <option value="">Todos los proveedores</option>
+        {proveedores.map((p) => (
+          <option key={p.id} value={p.id}>{p.nombre}</option>
+        ))}
+      </select>
+
+      <select
+        value={filtroContratista}
+        onChange={(e) => setFiltroContratista(e.target.value)}
+        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+      >
+        <option value="">Todos los contratistas</option>
+        {contratistas.map((c) => (
+          <option key={c.id} value={c.id}>{c.nombre}</option>
+        ))}
       </select>
 
       <select
@@ -334,6 +363,8 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
           onClick={() => {
             setFiltroMaterial("");
             setFiltroTipo("");
+            setFiltroProveedor("");
+            setFiltroContratista("");
             setFiltroUsuario("");
             setFiltroDesde("");
             setFiltroHasta("");
@@ -707,63 +738,48 @@ export default function MovimientosStockTable({ campoId, puedeEditar = true }: {
 
             <div>
               <label className="block text-sm font-medium text-stone-700">Material</label>
-              <select
+              <BuscarSelect
                 required
+                opciones={materiales}
                 value={editando.material_id}
-                onChange={(e) => setEditando({ ...editando, material_id: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-              >
-                {materiales.map((m) => (
-                  <option key={m.id} value={m.id}>{m.nombre}</option>
-                ))}
-              </select>
+                onChange={(id) => setEditando({ ...editando, material_id: id })}
+                placeholder="Buscar material..."
+              />
             </div>
 
             {editando.tipo === "entrada" ? (
               <div>
                 <label className="block text-sm font-medium text-stone-700">Proveedor</label>
-                <select
+                <BuscarSelect
                   required
+                  opciones={proveedores}
                   value={editando.proveedor_id}
-                  onChange={(e) => setEditando({ ...editando, proveedor_id: e.target.value })}
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-                >
-                  <option value="" disabled>Elegir...</option>
-                  {proveedores.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                  ))}
-                </select>
+                  onChange={(id) => setEditando({ ...editando, proveedor_id: id })}
+                  placeholder="Buscar proveedor..."
+                />
               </div>
             ) : (
               <>
                 <div>
                   <label className="block text-sm font-medium text-stone-700">Contratista</label>
-                  <select
+                  <BuscarSelect
                     required
+                    opciones={contratistas}
                     value={editando.contratista_id}
-                    onChange={(e) => setEditando({ ...editando, contratista_id: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-                  >
-                    <option value="" disabled>Elegir...</option>
-                    {contratistas.map((c) => (
-                      <option key={c.id} value={c.id}>{c.nombre}</option>
-                    ))}
-                  </select>
+                    onChange={(id) => setEditando({ ...editando, contratista_id: id })}
+                    placeholder="Buscar contratista..."
+                  />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-stone-700">Lote destino</label>
-                  <select
+                  <BuscarSelect
                     required
+                    opciones={lotesMateriales}
                     value={editando.lote_material_id}
-                    onChange={(e) => setEditando({ ...editando, lote_material_id: e.target.value })}
-                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-                  >
-                    <option value="" disabled>Elegir...</option>
-                    {lotesMateriales.map((l) => (
-                      <option key={l.id} value={l.id}>{l.nombre}</option>
-                    ))}
-                  </select>
+                    onChange={(id) => setEditando({ ...editando, lote_material_id: id })}
+                    placeholder="Buscar lote..."
+                  />
                 </div>
               </>
             )}

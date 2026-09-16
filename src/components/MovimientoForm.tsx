@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import BuscarSelect from "./BuscarSelect";
 import { createClient } from "@/lib/supabase/client";
 import {
   getContratistasActivos,
@@ -258,64 +259,48 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
 
       <div>
         <label className="block text-sm font-medium text-stone-700">Material</label>
-        <select
+        <BuscarSelect
           required
+          opciones={materiales}
           value={materialId}
-          onChange={(e) => setMaterialId(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-        >
-          <option value="" disabled>Elegir...</option>
-          {materiales.map((m) => (
-            <option key={m.id} value={m.id}>{m.nombre}</option>
-          ))}
-        </select>
+          onChange={setMaterialId}
+          placeholder="Buscar material..."
+        />
       </div>
 
       {tipo === "entrada" ? (
         <div>
           <label className="block text-sm font-medium text-stone-700">Proveedor</label>
-          <select
+          <BuscarSelect
             required
+            opciones={proveedores}
             value={proveedorId}
-            onChange={(e) => setProveedorId(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-          >
-            <option value="" disabled>Elegir...</option>
-            {proveedores.map((p) => (
-              <option key={p.id} value={p.id}>{p.nombre}</option>
-            ))}
-          </select>
+            onChange={setProveedorId}
+            placeholder="Buscar proveedor..."
+          />
         </div>
       ) : (
         <>
           <div>
             <label className="block text-sm font-medium text-stone-700">Contratista</label>
-            <select
+            <BuscarSelect
               required
+              opciones={contratistas}
               value={contratistaId}
-              onChange={(e) => setContratistaId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-            >
-              <option value="" disabled>Elegir...</option>
-              {contratistas.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
+              onChange={setContratistaId}
+              placeholder="Buscar contratista..."
+            />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-stone-700">Lote destino</label>
-            <select
+            <BuscarSelect
               required
+              opciones={lotesMateriales}
               value={loteMaterialId}
-              onChange={(e) => setLoteMaterialId(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-            >
-              <option value="" disabled>Elegir...</option>
-              {lotesMateriales.map((l) => (
-                <option key={l.id} value={l.id}>{l.nombre}</option>
-              ))}
-            </select>
+              onChange={setLoteMaterialId}
+              placeholder="Buscar lote..."
+            />
           </div>
         </>
       )}
