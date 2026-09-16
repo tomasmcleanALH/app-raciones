@@ -22,22 +22,20 @@ export default function ElegirCampoTiles({ campos, veTodo }: { campos: Campo[]; 
   }
 
   return (
-    <div className={`grid flex-1 grid-cols-1 ${campos.length > 1 ? "sm:grid-cols-2" : ""}`}>
-      {campos.map((c, i) => (
-        <button
-          key={c.id}
-          onClick={() => elegir(c.id)}
-          disabled={eligiendo !== null}
-          className={`group flex min-h-[45vh] flex-col items-center justify-center gap-3 border border-white/5 px-6 text-center transition hover:brightness-125 disabled:cursor-wait disabled:opacity-70 ${
-            i % 2 === 0 ? "bg-brand-900" : "bg-stone-950"
-          }`}
-        >
-          <span className="text-2xl font-bold text-white sm:text-3xl">{c.nombre}</span>
-          <span className="text-lg text-white/50 opacity-0 transition group-hover:opacity-100">
-            {eligiendo === c.id ? "Entrando..." : "→"}
-          </span>
-        </button>
-      ))}
+    <div className="flex flex-1 items-center justify-center px-4 py-10">
+      <div className="grid w-full max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+        {campos.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => elegir(c.id)}
+            disabled={eligiendo !== null}
+            className="rounded-2xl bg-white p-6 text-left shadow-sm ring-1 ring-stone-200/70 transition hover:shadow-md hover:ring-stone-300 disabled:cursor-wait disabled:opacity-60"
+          >
+            <p className="font-serif text-2xl font-bold text-stone-900">{c.nombre}</p>
+            <p className="mt-1 text-sm text-stone-400">{eligiendo === c.id ? "Entrando..." : "Tocá para entrar"}</p>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
