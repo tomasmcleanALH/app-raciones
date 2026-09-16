@@ -54,6 +54,34 @@ export interface EntregaConNombres extends Entrega {
   cargado_por_nombre: string;
 }
 
+/** Proveedores de Alimentos: catálogo propio, separado del de Materiales. */
+export interface ProveedorAlimento {
+  id: string;
+  campo_id: string;
+  nombre: string;
+  activo: boolean;
+  created_at: string;
+}
+
+/** Entrada de alimento (compra/llegada). Sin lote: todavía no tiene destino. */
+export interface EntradaAlimento {
+  id: string;
+  fecha: string; // YYYY-MM-DD
+  alimento_id: string;
+  cantidad: number;
+  unidad: string;
+  proveedor_id: string | null;
+  observaciones: string | null;
+  cargado_por: string;
+  created_at: string;
+}
+
+export interface EntradaAlimentoConNombres extends EntradaAlimento {
+  alimento_nombre: string;
+  proveedor_nombre: string | null;
+  cargado_por_nombre: string;
+}
+
 // ------------------------------------------------------------
 // Módulo Stock de materiales (materiales, movimientos de entrada/salida)
 // ------------------------------------------------------------

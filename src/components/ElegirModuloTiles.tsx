@@ -3,10 +3,24 @@
 import Link from "next/link";
 import type { Modulo } from "@/lib/types";
 
-const DESTINO: Record<Modulo, string> = { alimentos: "/alimentos", materiales: "/stock" };
 const ETIQUETA: Record<Modulo, string> = { alimentos: "Alimentos", materiales: "Materiales" };
 
-export default function ElegirModuloTiles({ modulos, campoNombre }: { modulos: Modulo[]; campoNombre: string }) {
+export default function ElegirModuloTiles({
+  modulos,
+  campoNombre,
+  veTodo,
+}: {
+  modulos: Modulo[];
+  campoNombre: string;
+  /** Los roles de gestión van al Stock de cada módulo; el que sólo carga
+   * (entregas o movimientos) va directo a su formulario. */
+  veTodo: boolean;
+}) {
+  const destino: Record<Modulo, string> = {
+    alimentos: veTodo ? "/alimentos" : "/entregar",
+    materiales: veTodo ? "/stock" : "/stock/cargar",
+  };
+
   return (
     <div className="flex flex-1 flex-col">
       <p className="px-4 pt-6 text-center text-sm text-white/50">{campoNombre}</p>
@@ -14,7 +28,7 @@ export default function ElegirModuloTiles({ modulos, campoNombre }: { modulos: M
         {modulos.map((m, i) => (
           <Link
             key={m}
-            href={DESTINO[m]}
+            href={destino[m]}
             className={`group flex min-h-[45vh] flex-col items-center justify-center gap-3 border border-white/5 px-6 text-center transition hover:brightness-125 ${
               i % 2 === 0 ? "bg-brand-900" : "bg-stone-950"
             }`}

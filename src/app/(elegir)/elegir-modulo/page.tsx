@@ -14,5 +14,6 @@ export default async function ElegirModuloPage() {
   const modulos = await obtenerModulosEfectivos(userId, profile.rol, campo.id);
   if (modulos.length <= 1) redirect("/");
 
-  return <ElegirModuloTiles modulos={modulos} campoNombre={campo.nombre} />;
+  const veTodo = ["encargado", "gerente", "dueno"].includes(profile.rol);
+  return <ElegirModuloTiles modulos={modulos} campoNombre={campo.nombre} veTodo={veTodo} />;
 }

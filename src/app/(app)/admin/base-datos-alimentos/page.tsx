@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import CatalogoAdmin from "@/components/CatalogoAdmin";
+import BaseDeDatosAlimentos from "@/components/BaseDeDatosAlimentos";
 import { requireEncargadoOGerente } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
 import { obtenerModulosEfectivos } from "@/lib/modulos";
 
-export default async function LotesAdminPage() {
+export default async function BaseDeDatosAlimentosPage() {
   const { userId, profile } = await requireEncargadoOGerente();
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
@@ -22,9 +22,7 @@ export default async function LotesAdminPage() {
   if (!modulos.includes("alimentos")) redirect("/");
 
   return (
-    <CatalogoAdmin
-      tabla="lotes"
-      titulo="Lotes"
+    <BaseDeDatosAlimentos
       campoId={campo.id}
       soloLectura={profile.rol !== "encargado" && profile.rol !== "dueno"}
     />

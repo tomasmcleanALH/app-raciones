@@ -36,5 +36,9 @@ export default async function HomePage() {
 
   if (modulos.length > 1) redirect("/elegir-modulo");
 
-  redirect(modulos[0] === "alimentos" ? "/alimentos" : "/stock");
+  // Los roles de gestión caen en la pantalla de Stock de su módulo; el que
+  // sólo carga (entregas o movimientos) va directo a su formulario.
+  const veTodo = ["encargado", "gerente", "dueno"].includes(profile.rol);
+  if (modulos[0] === "alimentos") redirect(veTodo ? "/alimentos" : "/entregar");
+  redirect(veTodo ? "/stock" : "/stock/cargar");
 }

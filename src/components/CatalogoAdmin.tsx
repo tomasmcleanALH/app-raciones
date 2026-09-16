@@ -10,7 +10,14 @@ interface Item {
 }
 
 interface Props {
-  tabla: "lotes" | "alimentos" | "materiales" | "proveedores" | "contratistas" | "lotes_materiales";
+  tabla:
+    | "lotes"
+    | "alimentos"
+    | "proveedores_alimentos"
+    | "materiales"
+    | "proveedores"
+    | "contratistas"
+    | "lotes_materiales";
   titulo: string;
   /** Campo al que pertenecen (y al que se asigna lo que se agregue acá). */
   campoId: string;
@@ -22,15 +29,16 @@ const ES_TABLA_STOCK = new Set(["materiales", "proveedores", "contratistas", "lo
 const SINGULAR: Record<Props["tabla"], string> = {
   lotes: "el lote",
   alimentos: "el alimento",
+  proveedores_alimentos: "el proveedor",
   materiales: "el material",
   proveedores: "el proveedor",
   contratistas: "el contratista",
   lotes_materiales: "el lote",
 };
 
-/** CRUD simple y genérico para "lotes"/"alimentos" (módulo Alimentos) y
- * "materiales"/"proveedores"/"contratistas"/"lotes_materiales" (módulo
- * Stock de materiales) — mismo formato. */
+/** CRUD simple y genérico para "lotes"/"alimentos"/"proveedores_alimentos"
+ * (módulo Alimentos) y "materiales"/"proveedores"/"contratistas"/
+ * "lotes_materiales" (módulo Stock de materiales) — mismo formato. */
 export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = false }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [nombreNuevo, setNombreNuevo] = useState("");
@@ -121,8 +129,12 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
     setMenuAbierto(null);
 
     if (error) {
-      // 23503 = violación de llave foránea: ya se usó en alguna entrega/movimiento.
-      const usoTexto = ES_TABLA_STOCK.has(tabla) ? "algún movimiento de stock" : "alguna entrega";
+      // 23503 = violación de llave foránea: ya se usó en alguna entrega/entrada/movimiento.
+      const usoTexto = ES_TABLA_STOCK.has(tabla)
+        ? "algún movimiento de stock"
+        : tabla === "proveedores_alimentos"
+          ? "alguna entrada de alimento"
+          : "alguna entrega";
       setErrorBorrado(
         error.code === "23503"
           ? `No se puede borrar "${item.nombre}": ya se usó en ${usoTexto}. Desactivalo en cambio.`
@@ -246,9 +258,18 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
       {!soloLectura && (
       <p className="mt-2 text-xs text-stone-400">
         Desactivar no borra el historial: sólo deja de aparecer como opción al cargar{" "}
-        {ES_TABLA_STOCK.has(tabla) ? "un movimiento nuevo" : "una entrega nueva"}.
-        Borrar es permanente y sólo se puede hacer si todavía no se usó en{" "}
-        {ES_TABLA_STOCK.has(tabla) ? "ningún movimiento" : "ninguna entrega"}.
+        {ES_TABLA_STOCK.has(tabla)
+          ? "un movimiento nuevo"
+          : tabla === "proveedores_alimentos"
+            ? "una entrada nueva"
+            : "una entrega nueva"}
+        . Borrar es permanente y sólo se puede hacer si todavía no se usó en{" "}
+        {ES_TABLA_STOCK.has(tabla)
+          ? "ningún movimiento"
+          : tabla === "proveedores_alimentos"
+            ? "ninguna entrada"
+            : "ninguna entrega"}
+        .
       </p>
       )}
 

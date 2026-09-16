@@ -119,6 +119,36 @@ create index if not exists entregas_fecha_idx on public.entregas (fecha_entrega 
 create index if not exists entregas_cargado_por_idx on public.entregas (cargado_por);
 
 -- ------------------------------------------------------------
+-- Proveedores de Alimentos (catálogo propio, separado del de
+-- Materiales) y Entradas de alimento (compra/llegada, Proveedor
+-- opcional, sin lote -- no tiene destino todavía). El stock
+-- disponible de un alimento se calcula: entradas - entregas.
+-- ------------------------------------------------------------
+create table if not exists public.proveedores_alimentos (
+  id uuid primary key default gen_random_uuid(),
+  campo_id uuid not null references public.campos (id),
+  nombre text not null,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (campo_id, nombre)
+);
+
+create table if not exists public.entradas_alimentos (
+  id uuid primary key default gen_random_uuid(),
+  fecha date not null,
+  alimento_id uuid not null references public.alimentos (id),
+  cantidad numeric(10, 2) not null check (cantidad > 0),
+  unidad text not null default 'kg',
+  proveedor_id uuid references public.proveedores_alimentos (id),
+  observaciones text,
+  cargado_por uuid not null references public.profiles (id),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists entradas_alimentos_fecha_idx on public.entradas_alimentos (fecha desc);
+create index if not exists entradas_alimentos_cargado_por_idx on public.entradas_alimentos (cargado_por);
+
+-- ------------------------------------------------------------
 -- Módulo aparte: Stock de materiales (rollos de alambre, postes,
 -- lo que se necesite). No se mezcla con Alimentos: cada usuario
 -- necesita el módulo "materiales" (ver usuarios_modulos más
@@ -302,6 +332,8 @@ alter table public.campo_modulos enable row level security;
 alter table public.lotes enable row level security;
 alter table public.alimentos enable row level security;
 alter table public.entregas enable row level security;
+alter table public.proveedores_alimentos enable row level security;
+alter table public.entradas_alimentos enable row level security;
 alter table public.materiales enable row level security;
 alter table public.proveedores enable row level security;
 alter table public.contratistas enable row level security;
@@ -465,6 +497,83 @@ create policy entregas_delete on public.entregas
     select 1 from public.lotes l where l.id = entregas.lote_id
       and public.es_admin_de_campo(l.campo_id) and public.tiene_acceso_a_modulo('alimentos')
       and public.campo_tiene_modulo(l.campo_id, 'alimentos')
+  ));
+
+-- proveedores_alimentos: mismo esquema que los demás catálogos.
+drop policy if exists proveedores_alimentos_select on public.proveedores_alimentos;
+create policy proveedores_alimentos_select on public.proveedores_alimentos
+  for select to authenticated
+  using (
+    public.tiene_acceso_a_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  );
+
+drop policy if exists proveedores_alimentos_modificar on public.proveedores_alimentos;
+create policy proveedores_alimentos_modificar on public.proveedores_alimentos
+  for all to authenticated
+  using (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  )
+  with check (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  );
+
+-- entradas_alimentos: a diferencia de las entregas (que puede cargar
+-- cualquiera con el módulo), sólo el administrador/dueño del campo.
+drop policy if exists entradas_alimentos_select on public.entradas_alimentos;
+create policy entradas_alimentos_select on public.entradas_alimentos
+  for select to authenticated
+  using (
+    cargado_por = auth.uid()
+    or exists (
+      select 1 from public.alimentos a
+      where a.id = entradas_alimentos.alimento_id
+        and public.puede_ver_todo_el_campo(a.campo_id)
+        and public.tiene_acceso_a_modulo('alimentos')
+        and public.campo_tiene_modulo(a.campo_id, 'alimentos')
+    )
+  );
+
+drop policy if exists entradas_alimentos_insert on public.entradas_alimentos;
+create policy entradas_alimentos_insert on public.entradas_alimentos
+  for insert to authenticated
+  with check (
+    cargado_por = auth.uid()
+    and exists (
+      select 1 from public.alimentos a
+      where a.id = alimento_id
+        and public.es_admin_de_campo(a.campo_id)
+        and public.tiene_acceso_a_modulo('alimentos')
+        and public.campo_tiene_modulo(a.campo_id, 'alimentos')
+    )
+  );
+
+drop policy if exists entradas_alimentos_update on public.entradas_alimentos;
+create policy entradas_alimentos_update on public.entradas_alimentos
+  for update to authenticated
+  using (exists (
+    select 1 from public.alimentos a where a.id = entradas_alimentos.alimento_id
+      and public.es_admin_de_campo(a.campo_id) and public.tiene_acceso_a_modulo('alimentos')
+      and public.campo_tiene_modulo(a.campo_id, 'alimentos')
+  ))
+  with check (exists (
+    select 1 from public.alimentos a where a.id = alimento_id
+      and public.es_admin_de_campo(a.campo_id) and public.tiene_acceso_a_modulo('alimentos')
+      and public.campo_tiene_modulo(a.campo_id, 'alimentos')
+  ));
+
+drop policy if exists entradas_alimentos_delete on public.entradas_alimentos;
+create policy entradas_alimentos_delete on public.entradas_alimentos
+  for delete to authenticated
+  using (exists (
+    select 1 from public.alimentos a where a.id = entradas_alimentos.alimento_id
+      and public.es_admin_de_campo(a.campo_id) and public.tiene_acceso_a_modulo('alimentos')
+      and public.campo_tiene_modulo(a.campo_id, 'alimentos')
   ));
 
 -- materiales: todos los del campo Y del módulo Materiales leen (el

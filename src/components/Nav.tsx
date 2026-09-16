@@ -30,12 +30,12 @@ export default function Nav({
     ? []
     : veTodo
       ? [
-          { href: "/alimentos", label: "Grilla" },
+          { href: "/alimentos", label: "Stock" },
+          { href: "/alimentos/historial", label: "Historial de movimientos" },
           { href: "/entregar", label: "Cargar entrega" },
-          { href: "/admin/lotes", label: "Lotes" },
-          { href: "/admin/alimentos", label: "Alimentos" },
+          { href: "/admin/base-datos-alimentos", label: "Base de datos" },
         ]
-      : [{ href: "/alimentos", label: "Cargar entrega" }];
+      : [{ href: "/entregar", label: "Cargar entrega" }];
 
   const linksMateriales = !modulos.includes("materiales")
     ? []

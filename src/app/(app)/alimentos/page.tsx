@@ -1,12 +1,10 @@
 import { redirect } from "next/navigation";
-import EntregaForm from "@/components/EntregaForm";
-import GrillaTable from "@/components/GrillaTable";
-import UltimasEntregas from "@/components/UltimasEntregas";
+import StockDisponibleAlimentos from "@/components/StockDisponibleAlimentos";
 import { requireProfile } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
 import { obtenerModulosEfectivos } from "@/lib/modulos";
 
-export default async function AlimentosHomePage() {
+export default async function AlimentosStockPage() {
   const { userId, profile } = await requireProfile();
   const { campo } = await obtenerCampoActual(userId, profile.rol);
 
@@ -23,20 +21,18 @@ export default async function AlimentosHomePage() {
   const modulos = await obtenerModulosEfectivos(userId, profile.rol, campo.id);
   if (!modulos.includes("alimentos")) redirect("/");
 
-  if (profile.rol === "encargado" || profile.rol === "gerente" || profile.rol === "dueno") {
-    return (
-      <div>
-        <h1 className="mb-4 text-xl font-bold text-stone-900">Todas las entregas</h1>
-        <GrillaTable campoId={campo.id} puedeEditar={profile.rol === "encargado" || profile.rol === "dueno"} />
-      </div>
-    );
-  }
+  // Igual que en Materiales: el que sólo carga entregas tiene su propia
+  // pantalla ("Cargar entrega"); acá sólo entran los roles de gestión.
+  if (!["encargado", "gerente", "dueno"].includes(profile.rol)) redirect("/entregar");
 
   return (
-    <div className="mx-auto max-w-md">
-      <h1 className="mb-4 text-xl font-bold text-stone-900">Cargar entrega</h1>
-      <EntregaForm userId={userId} campoId={campo.id} />
-      <UltimasEntregas userId={userId} campoId={campo.id} />
+    <div>
+      <h1 className="mb-4 text-xl font-bold text-stone-900">Alimentos</h1>
+      <StockDisponibleAlimentos
+        campoId={campo.id}
+        userId={userId}
+        puedeAdministrar={profile.rol === "encargado" || profile.rol === "dueno"}
+      />
     </div>
   );
 }

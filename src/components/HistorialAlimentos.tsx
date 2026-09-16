@@ -1,44 +1,60 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
-import type { Alimento, Lote, Profile } from "@/lib/types";
+import type { Alimento, Lote, Profile, ProveedorAlimento, TipoMovimiento } from "@/lib/types";
 
-interface FilaGrilla {
+interface FilaHistorial {
   id: string;
-  fecha_entrega: string;
-  lote_id: string;
+  tipo: TipoMovimiento;
+  fecha: string;
   alimento_id: string;
+  alimento_nombre: string;
   cantidad: number;
   unidad: string;
   observaciones: string | null;
   created_at: string;
-  lote_nombre: string;
-  alimento_nombre: string;
   cargado_por_nombre: string;
+  lote_id: string | null;
+  lote_nombre: string | null;
+  proveedor_id: string | null;
+  proveedor_nombre: string | null;
 }
 
-interface EntregaEditable {
-  id: string;
-  fecha_entrega: string;
-  lote_id: string;
-  alimento_id: string;
-  cantidad: string;
-  unidad: string;
-  observaciones: string;
-}
+type Editable =
+  | {
+      kind: "salida";
+      id: string;
+      fecha: string;
+      lote_id: string;
+      alimento_id: string;
+      cantidad: string;
+      unidad: string;
+      observaciones: string;
+    }
+  | {
+      kind: "entrada";
+      id: string;
+      fecha: string;
+      alimento_id: string;
+      proveedor_id: string;
+      cantidad: string;
+      unidad: string;
+      observaciones: string;
+    };
 
-export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: string; puedeEditar?: boolean }) {
-  const [filas, setFilas] = useState<FilaGrilla[]>([]);
-  const [lotes, setLotes] = useState<Lote[]>([]);
+export default function HistorialAlimentos({ campoId, puedeEditar = true }: { campoId: string; puedeEditar?: boolean }) {
+  const [filas, setFilas] = useState<FilaHistorial[]>([]);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
-  const [tractoristas, setTractoristas] = useState<Profile[]>([]);
+  const [lotes, setLotes] = useState<Lote[]>([]);
+  const [proveedores, setProveedores] = useState<ProveedorAlimento[]>([]);
+  const [usuarios, setUsuarios] = useState<Profile[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [filtroLote, setFiltroLote] = useState("");
   const [filtroAlimento, setFiltroAlimento] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("");
   const [filtroUsuario, setFiltroUsuario] = useState("");
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
@@ -47,7 +63,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
   const [confirmandoBorrado, setConfirmandoBorrado] = useState<string | null>(null);
   const [borrando, setBorrando] = useState(false);
-  const [editando, setEditando] = useState<EntregaEditable | null>(null);
+  const [editando, setEditando] = useState<Editable | null>(null);
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
 
@@ -56,85 +72,120 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
   useEffect(() => {
     const supabase = createClient();
     Promise.all([
-      supabase.from("lotes").select("*").eq("campo_id", campoId).order("nombre"),
       supabase.from("alimentos").select("*").eq("campo_id", campoId).order("nombre"),
-      supabase.from("usuarios_campos").select("profiles(*)").eq("campo_id", campoId),
-    ]).then(([l, a, uc]) => {
-      setLotes((l.data ?? []) as Lote[]);
+      supabase.from("lotes").select("*").eq("campo_id", campoId).order("nombre"),
+      supabase.from("proveedores_alimentos").select("*").eq("campo_id", campoId).order("nombre"),
+      supabase
+        .from("profiles")
+        .select("*, usuarios_campos!inner(campo_id), usuarios_modulos!inner(modulo)")
+        .eq("usuarios_campos.campo_id", campoId)
+        .eq("usuarios_modulos.modulo", "alimentos"),
+    ]).then(([a, l, p, u]) => {
       setAlimentos((a.data ?? []) as Alimento[]);
-      const perfiles = (uc.data ?? [])
-        .map((fila: any) => fila.profiles as Profile)
-        .filter(Boolean)
-        .sort((a: Profile, b: Profile) => a.nombre.localeCompare(b.nombre));
-      setTractoristas(perfiles);
+      setLotes((l.data ?? []) as Lote[]);
+      setProveedores((p.data ?? []) as ProveedorAlimento[]);
+      setUsuarios(((u.data ?? []) as Profile[]).sort((a, b) => a.nombre.localeCompare(b.nombre)));
     });
   }, [campoId]);
 
-  const cargarEntregas = useCallback(async () => {
+  const cargarMovimientos = useCallback(async () => {
     setCargando(true);
     setError(null);
 
     const supabase = createClient();
-    let query = supabase
-      .from("entregas")
-      .select(
-        "id, fecha_entrega, cantidad, unidad, observaciones, created_at, lote_id, alimento_id, lotes!inner(nombre, campo_id), alimentos(nombre), profiles(nombre)",
-      )
-      .eq("lotes.campo_id", campoId)
-      .order("fecha_entrega", { ascending: false })
-      .order("created_at", { ascending: false });
+    const resultado: FilaHistorial[] = [];
 
-    if (filtroLote) query = query.eq("lote_id", filtroLote);
-    if (filtroAlimento) query = query.eq("alimento_id", filtroAlimento);
-    if (filtroUsuario) query = query.eq("cargado_por", filtroUsuario);
-    if (filtroDesde) query = query.gte("fecha_entrega", filtroDesde);
-    if (filtroHasta) query = query.lte("fecha_entrega", filtroHasta);
+    if (filtroTipo !== "salida") {
+      let q = supabase
+        .from("entradas_alimentos")
+        .select(
+          "id, fecha, cantidad, unidad, observaciones, created_at, alimento_id, proveedor_id, alimentos!inner(nombre, campo_id), proveedores_alimentos(nombre), profiles(nombre)",
+        )
+        .eq("alimentos.campo_id", campoId);
+      if (filtroAlimento) q = q.eq("alimento_id", filtroAlimento);
+      if (filtroUsuario) q = q.eq("cargado_por", filtroUsuario);
+      if (filtroDesde) q = q.gte("fecha", filtroDesde);
+      if (filtroHasta) q = q.lte("fecha", filtroHasta);
 
-    const { data, error } = await query;
-
-    if (error) {
-      setError(navigator.onLine ? error.message : "Sin señal: no se puede actualizar la grilla ahora.");
-      setCargando(false);
-      return;
+      const { data, error } = await q;
+      if (error) {
+        setError(navigator.onLine ? error.message : "Sin señal: no se puede actualizar la grilla ahora.");
+        setCargando(false);
+        return;
+      }
+      for (const e of (data ?? []) as any[]) {
+        resultado.push({
+          id: e.id,
+          tipo: "entrada",
+          fecha: e.fecha,
+          alimento_id: e.alimento_id,
+          alimento_nombre: e.alimentos?.nombre ?? "—",
+          cantidad: e.cantidad,
+          unidad: e.unidad,
+          observaciones: e.observaciones,
+          created_at: e.created_at,
+          cargado_por_nombre: e.profiles?.nombre ?? "—",
+          lote_id: null,
+          lote_nombre: null,
+          proveedor_id: e.proveedor_id,
+          proveedor_nombre: e.proveedores_alimentos?.nombre ?? null,
+        });
+      }
     }
 
-    setFilas(
-      (data ?? []).map((e: any) => ({
-        id: e.id,
-        fecha_entrega: e.fecha_entrega,
-        lote_id: e.lote_id,
-        alimento_id: e.alimento_id,
-        cantidad: e.cantidad,
-        unidad: e.unidad,
-        observaciones: e.observaciones,
-        created_at: e.created_at,
-        lote_nombre: e.lotes?.nombre ?? "—",
-        alimento_nombre: e.alimentos?.nombre ?? "—",
-        cargado_por_nombre: e.profiles?.nombre ?? "—",
-      })),
-    );
+    if (filtroTipo !== "entrada") {
+      let q = supabase
+        .from("entregas")
+        .select(
+          "id, fecha_entrega, cantidad, unidad, observaciones, created_at, alimento_id, lote_id, lotes!inner(nombre, campo_id), alimentos(nombre), profiles(nombre)",
+        )
+        .eq("lotes.campo_id", campoId);
+      if (filtroAlimento) q = q.eq("alimento_id", filtroAlimento);
+      if (filtroUsuario) q = q.eq("cargado_por", filtroUsuario);
+      if (filtroDesde) q = q.gte("fecha_entrega", filtroDesde);
+      if (filtroHasta) q = q.lte("fecha_entrega", filtroHasta);
+
+      const { data, error } = await q;
+      if (error) {
+        setError(navigator.onLine ? error.message : "Sin señal: no se puede actualizar la grilla ahora.");
+        setCargando(false);
+        return;
+      }
+      for (const s of (data ?? []) as any[]) {
+        resultado.push({
+          id: s.id,
+          tipo: "salida",
+          fecha: s.fecha_entrega,
+          alimento_id: s.alimento_id,
+          alimento_nombre: s.alimentos?.nombre ?? "—",
+          cantidad: s.cantidad,
+          unidad: s.unidad,
+          observaciones: s.observaciones,
+          created_at: s.created_at,
+          cargado_por_nombre: s.profiles?.nombre ?? "—",
+          lote_id: s.lote_id,
+          lote_nombre: s.lotes?.nombre ?? null,
+          proveedor_id: null,
+          proveedor_nombre: null,
+        });
+      }
+    }
+
+    resultado.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.created_at.localeCompare(a.created_at));
+    setFilas(resultado);
     setSeleccionados(new Set());
     setCargando(false);
-  }, [campoId, filtroLote, filtroAlimento, filtroUsuario, filtroDesde, filtroHasta]);
+  }, [campoId, filtroAlimento, filtroTipo, filtroUsuario, filtroDesde, filtroHasta]);
 
   useEffect(() => {
-    cargarEntregas();
-  }, [cargarEntregas]);
+    cargarMovimientos();
+  }, [cargarMovimientos]);
 
-  const totalColumnas = puedeEditar ? 9 : 8;
+  const totalColumnas = puedeEditar ? 10 : 9;
 
-  /** Suma la cantidad entregada de cada alimento (agrupada también por unidad,
-   * por si el mismo alimento se cargó alguna vez con otra unidad). */
-  const resumenAlimentos = useMemo(() => {
-    const mapa = new Map<string, { alimento: string; unidad: string; total: number }>();
-    for (const f of filas) {
-      const clave = `${f.alimento_nombre}|${f.unidad}`;
-      const actual = mapa.get(clave);
-      if (actual) actual.total += Number(f.cantidad);
-      else mapa.set(clave, { alimento: f.alimento_nombre, unidad: f.unidad, total: Number(f.cantidad) });
-    }
-    return [...mapa.values()].sort((a, b) => a.alimento.localeCompare(b.alimento));
-  }, [filas]);
+  function detalle(f: FilaHistorial) {
+    return f.tipo === "entrada" ? `Proveedor: ${f.proveedor_nombre ?? "—"}` : `Lote: ${f.lote_nombre ?? "—"}`;
+  }
 
   /** El menú "⋮" se posiciona con position:fixed (según el botón que lo abrió)
    * en vez de absolute, para que no quede recortado por el scroll horizontal
@@ -152,18 +203,32 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
     setMenuPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - 160) });
   }
 
-  function abrirEdicion(f: FilaGrilla) {
+  function abrirEdicion(f: FilaHistorial) {
     setMenuAbierto(null);
     setErrorEdicion(null);
-    setEditando({
-      id: f.id,
-      fecha_entrega: f.fecha_entrega,
-      lote_id: f.lote_id,
-      alimento_id: f.alimento_id,
-      cantidad: String(f.cantidad),
-      unidad: f.unidad,
-      observaciones: f.observaciones ?? "",
-    });
+    setEditando(
+      f.tipo === "salida"
+        ? {
+            kind: "salida",
+            id: f.id,
+            fecha: f.fecha,
+            lote_id: f.lote_id ?? "",
+            alimento_id: f.alimento_id,
+            cantidad: String(f.cantidad),
+            unidad: f.unidad,
+            observaciones: f.observaciones ?? "",
+          }
+        : {
+            kind: "entrada",
+            id: f.id,
+            fecha: f.fecha,
+            alimento_id: f.alimento_id,
+            proveedor_id: f.proveedor_id ?? "",
+            cantidad: String(f.cantidad),
+            unidad: f.unidad,
+            observaciones: f.observaciones ?? "",
+          },
+    );
   }
 
   async function guardarEdicion(e: React.FormEvent) {
@@ -173,17 +238,30 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
     setErrorEdicion(null);
 
     const supabase = createClient();
-    const { error } = await supabase
-      .from("entregas")
-      .update({
-        fecha_entrega: editando.fecha_entrega,
-        lote_id: editando.lote_id,
-        alimento_id: editando.alimento_id,
-        cantidad: Number(editando.cantidad),
-        unidad: editando.unidad,
-        observaciones: editando.observaciones.trim() || null,
-      })
-      .eq("id", editando.id);
+    const { error } =
+      editando.kind === "salida"
+        ? await supabase
+            .from("entregas")
+            .update({
+              fecha_entrega: editando.fecha,
+              lote_id: editando.lote_id,
+              alimento_id: editando.alimento_id,
+              cantidad: Number(editando.cantidad),
+              unidad: editando.unidad,
+              observaciones: editando.observaciones.trim() || null,
+            })
+            .eq("id", editando.id)
+        : await supabase
+            .from("entradas_alimentos")
+            .update({
+              fecha: editando.fecha,
+              alimento_id: editando.alimento_id,
+              proveedor_id: editando.proveedor_id || null,
+              cantidad: Number(editando.cantidad),
+              unidad: editando.unidad,
+              observaciones: editando.observaciones.trim() || null,
+            })
+            .eq("id", editando.id);
 
     setGuardandoEdicion(false);
 
@@ -193,17 +271,17 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
     }
 
     setEditando(null);
-    cargarEntregas();
+    cargarMovimientos();
   }
 
-  async function borrarEntrega(id: string) {
+  async function borrarMovimiento(f: FilaHistorial) {
     setBorrando(true);
     const supabase = createClient();
-    await supabase.from("entregas").delete().eq("id", id);
+    await supabase.from(f.tipo === "salida" ? "entregas" : "entradas_alimentos").delete().eq("id", f.id);
     setBorrando(false);
     setConfirmandoBorrado(null);
     setMenuAbierto(null);
-    cargarEntregas();
+    cargarMovimientos();
   }
 
   function toggleSeleccionado(id: string) {
@@ -226,9 +304,11 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
     if (filasAExportar.length === 0) return;
 
     const datos = filasAExportar.map((f) => ({
-      "Fecha entrega": f.fecha_entrega,
+      "Fecha": f.fecha,
       "Alimento": f.alimento_nombre,
-      "Lote destino": f.lote_nombre,
+      "Tipo": f.tipo === "entrada" ? "Entrada" : "Salida",
+      "Proveedor": f.proveedor_nombre ?? "",
+      "Lote destino": f.lote_nombre ?? "",
       "Cantidad": f.cantidad,
       "Unidad": f.unidad,
       "Cargado por": f.cargado_por_nombre,
@@ -238,30 +318,20 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
 
     const hoja = XLSX.utils.json_to_sheet(datos);
     hoja["!cols"] = [
-      { wch: 13 }, { wch: 20 }, { wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 30 }, { wch: 18 },
+      { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 18 }, { wch: 16 },
+      { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 30 }, { wch: 18 },
     ];
     const libro = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(libro, hoja, "Entregas");
+    XLSX.utils.book_append_sheet(libro, hoja, "Movimientos");
 
     const hoy = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(libro, `entregas-${hoy}.xlsx`);
+    XLSX.writeFile(libro, `historial-alimentos-${hoy}.xlsx`);
   }
 
-  const hayFiltrosActivos = !!(filtroLote || filtroAlimento || filtroUsuario || filtroDesde || filtroHasta);
+  const hayFiltrosActivos = !!(filtroAlimento || filtroTipo || filtroUsuario || filtroDesde || filtroHasta);
 
   const controlesFiltro = (
     <>
-      <select
-        value={filtroLote}
-        onChange={(e) => setFiltroLote(e.target.value)}
-        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
-      >
-        <option value="">Todos los lotes</option>
-        {lotes.map((l) => (
-          <option key={l.id} value={l.id}>{l.nombre}</option>
-        ))}
-      </select>
-
       <select
         value={filtroAlimento}
         onChange={(e) => setFiltroAlimento(e.target.value)}
@@ -274,13 +344,23 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
       </select>
 
       <select
+        value={filtroTipo}
+        onChange={(e) => setFiltroTipo(e.target.value)}
+        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+      >
+        <option value="">Entradas y salidas</option>
+        <option value="entrada">Sólo entradas</option>
+        <option value="salida">Sólo salidas</option>
+      </select>
+
+      <select
         value={filtroUsuario}
         onChange={(e) => setFiltroUsuario(e.target.value)}
         className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
       >
         <option value="">Todos los usuarios</option>
-        {tractoristas.map((t) => (
-          <option key={t.id} value={t.id}>{t.nombre}</option>
+        {usuarios.map((u) => (
+          <option key={u.id} value={u.id}>{u.nombre}</option>
         ))}
       </select>
 
@@ -302,8 +382,8 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
       {hayFiltrosActivos && (
         <button
           onClick={() => {
-            setFiltroLote("");
             setFiltroAlimento("");
+            setFiltroTipo("");
             setFiltroUsuario("");
             setFiltroDesde("");
             setFiltroHasta("");
@@ -320,7 +400,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
     <button
       onClick={exportarExcel}
       disabled={seleccionados.size === 0}
-      title={`Exportar a Excel${seleccionados.size > 0 ? ` (${seleccionados.size} seleccionadas)` : ""}`}
+      title={`Exportar a Excel${seleccionados.size > 0 ? ` (${seleccionados.size} seleccionados)` : ""}`}
       aria-label="Exportar a Excel"
       className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1D6F42] text-white hover:bg-[#175c37] disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400"
     >
@@ -338,7 +418,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
 
   const botonActualizar = (
     <button
-      onClick={() => cargarEntregas()}
+      onClick={() => cargarMovimientos()}
       disabled={cargando}
       title="Actualizar"
       aria-label="Actualizar"
@@ -359,77 +439,19 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
     </button>
   );
 
-  const menuAcciones = (f: FilaGrilla) => (
-    <>
-      <button
-        className="fixed inset-0 z-10 cursor-default"
-        onClick={() => setMenuAbierto(null)}
-        aria-label="Cerrar menú"
-      />
-      <div className="absolute right-0 top-full z-20 w-40 rounded-lg bg-white py-1 text-left shadow-lg ring-1 ring-stone-200">
-        {confirmandoBorrado === f.id ? (
-          <div className="px-3 py-2">
-            <p className="mb-2 text-xs text-stone-600">¿Borrar esta entrega?</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmandoBorrado(null)}
-                className="flex-1 rounded bg-stone-100 px-2 py-1 text-xs hover:bg-stone-200"
-              >
-                No
-              </button>
-              <button
-                onClick={() => borrarEntrega(f.id)}
-                disabled={borrando}
-                className="flex-1 rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-800 disabled:opacity-60"
-              >
-                {borrando ? "..." : "Sí"}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <button
-              onClick={() => abrirEdicion(f)}
-              className="block w-full px-3 py-2 text-left text-sm text-stone-700 hover:bg-stone-50"
-            >
-              Editar
-            </button>
-            <button
-              onClick={() => setConfirmandoBorrado(f.id)}
-              className="block w-full px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
-            >
-              Borrar
-            </button>
-          </>
-        )}
-      </div>
-    </>
-  );
-
-  const resumenAlimentosPanel = (
-    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
-      <h2 className="mb-3 text-sm font-semibold text-stone-700">Resumen por alimento</h2>
-      {filas.length === 0 ? (
-        <p className="text-sm text-stone-400">Sin entregas para resumir.</p>
-      ) : (
-        <ul className="space-y-2">
-          {resumenAlimentos.map((r) => (
-            <li key={`${r.alimento}|${r.unidad}`} className="flex items-start justify-between gap-3 text-sm">
-              <span className="text-stone-600">{r.alimento}</span>
-              <span className="shrink-0 font-medium text-stone-900">
-                {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+  const badgeTipo = (tipo: TipoMovimiento) => (
+    <span
+      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+        tipo === "entrada" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+      }`}
+    >
+      {tipo === "entrada" ? "Entrada" : "Salida"}
+    </span>
   );
 
   return (
-    <div className="lg:flex lg:items-start lg:gap-6">
-    <div className="min-w-0 lg:flex-1">
-      {/* Filtros — escritorio: barra fija, igual que siempre */}
+    <div>
+      {/* Filtros — escritorio: barra fija, igual que en la grilla de materiales */}
       <div className="mb-4 hidden flex-wrap items-center gap-2 md:flex">
         {controlesFiltro}
         <div className="ml-auto flex gap-2">
@@ -438,7 +460,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
         </div>
       </div>
 
-      {/* Filtros — celular: acordeón desplegable, con el ícono de exportar al lado */}
+      {/* Filtros — celular: acordeón desplegable */}
       <div className="mb-4 flex items-start gap-2 md:hidden">
         <details className="flex-1 rounded-xl bg-white shadow-sm ring-1 ring-stone-200">
           <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-stone-700">
@@ -460,7 +482,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
         {cargando ? (
           <p className="rounded-xl bg-white p-6 text-center text-sm text-stone-400 shadow-sm ring-1 ring-stone-200">Cargando...</p>
         ) : filas.length === 0 ? (
-          <p className="rounded-xl bg-white p-6 text-center text-sm text-stone-400 shadow-sm ring-1 ring-stone-200">No hay entregas registradas.</p>
+          <p className="rounded-xl bg-white p-6 text-center text-sm text-stone-400 shadow-sm ring-1 ring-stone-200">No hay movimientos registrados.</p>
         ) : (
           <>
             <label className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm text-stone-600 shadow-sm ring-1 ring-stone-200">
@@ -470,7 +492,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
                 onChange={toggleSeleccionarTodo}
                 className="h-4 w-4 rounded border-stone-300 accent-brand-700"
               />
-              Seleccionar todas
+              Seleccionar todos
             </label>
 
             {filas.map((f) => (
@@ -486,34 +508,79 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
                       type="checkbox"
                       checked={seleccionados.has(f.id)}
                       onChange={() => toggleSeleccionado(f.id)}
-                      aria-label={`Seleccionar entrega del ${f.fecha_entrega}`}
+                      aria-label={`Seleccionar movimiento del ${f.fecha}`}
                       className="h-4 w-4 rounded border-stone-300 accent-brand-700"
                     />
-                    {f.fecha_entrega}
+                    {f.fecha}
                   </label>
 
-                  {puedeEditar && (
-                    <button
-                      onClick={() => {
-                        setConfirmandoBorrado(null);
-                        setMenuAbierto(menuAbierto === f.id ? null : f.id);
-                      }}
-                      className="-mt-1 -mr-1 rounded px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
-                      aria-label="Más acciones"
-                    >
-                      ⋮
-                    </button>
+                  <div className="flex items-center gap-1">
+                    {badgeTipo(f.tipo)}
+                    {puedeEditar && (
+                      <button
+                        onClick={(e) => abrirMenu(e, f.id)}
+                        className="-mr-1 rounded px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700"
+                        aria-label="Más acciones"
+                      >
+                        ⋮
+                      </button>
+                    )}
+                  </div>
+                  {puedeEditar && menuAbierto === f.id && menuPos && (
+                    <>
+                      <button
+                        className="fixed inset-0 z-10 cursor-default"
+                        onClick={() => setMenuAbierto(null)}
+                        aria-label="Cerrar menú"
+                      />
+                      <div
+                        style={{ position: "fixed", top: menuPos.top, left: menuPos.left }}
+                        className="z-20 w-40 rounded-lg bg-white py-1 text-left shadow-lg ring-1 ring-stone-200"
+                      >
+                        {confirmandoBorrado === f.id ? (
+                          <div className="px-3 py-2">
+                            <p className="mb-2 text-xs text-stone-600">¿Borrar este movimiento?</p>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setConfirmandoBorrado(null)}
+                                className="flex-1 rounded bg-stone-100 px-2 py-1 text-xs hover:bg-stone-200"
+                              >
+                                No
+                              </button>
+                              <button
+                                onClick={() => borrarMovimiento(f)}
+                                disabled={borrando}
+                                className="flex-1 rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-800 disabled:opacity-60"
+                              >
+                                {borrando ? "..." : "Sí"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => abrirEdicion(f)}
+                              className="block w-full px-3 py-2 text-left text-sm text-stone-700 hover:bg-stone-50"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => setConfirmandoBorrado(f.id)}
+                              className="block w-full px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+                            >
+                              Borrar
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </>
                   )}
-                  {puedeEditar && menuAbierto === f.id && menuAcciones(f)}
                 </div>
 
                 <div className="mt-2 space-y-1 pl-6 text-stone-700">
                   <p><span className="text-stone-500">Alimento:</span> {f.alimento_nombre}</p>
-                  <p>
-                    <span className="text-stone-500">Lote destino:</span> {f.lote_nombre}
-                    <span className="mx-1.5 text-stone-300">|</span>
-                    <span className="text-stone-500">Cantidad:</span> {f.cantidad} {f.unidad}
-                  </p>
+                  <p><span className="text-stone-500">Cantidad:</span> {f.cantidad} {f.unidad}</p>
+                  <p>{detalle(f)}</p>
                   <p><span className="text-stone-500">Cargado por:</span> {f.cargado_por_nombre}</p>
                   {f.observaciones && (
                     <p><span className="text-stone-500">Observaciones:</span> {f.observaciones}</p>
@@ -528,9 +595,9 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
         )}
       </div>
 
-      {/* Escritorio: tabla, sin cambios */}
+      {/* Escritorio: tabla */}
       <div className="hidden overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-stone-200 md:block">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[860px] text-sm">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-500">
               <th className="w-10 px-4 py-2.5">
@@ -538,13 +605,14 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
                   type="checkbox"
                   checked={filas.length > 0 && seleccionados.size === filas.length}
                   onChange={toggleSeleccionarTodo}
-                  aria-label="Seleccionar todas"
+                  aria-label="Seleccionar todos"
                   className="h-4 w-4 rounded border-stone-300 accent-brand-700"
                 />
               </th>
-              <th className="px-4 py-2.5 font-medium">Fecha entrega</th>
+              <th className="px-4 py-2.5 font-medium">Fecha</th>
               <th className="px-4 py-2.5 font-medium">Alimento</th>
-              <th className="px-4 py-2.5 font-medium">Lote destino</th>
+              <th className="px-4 py-2.5 font-medium">Tipo</th>
+              <th className="px-4 py-2.5 font-medium">Detalle</th>
               <th className="px-4 py-2.5 font-medium">Cantidad</th>
               <th className="px-4 py-2.5 font-medium">Cargado por</th>
               <th className="px-4 py-2.5 font-medium">Observaciones</th>
@@ -559,7 +627,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
               </tr>
             ) : filas.length === 0 ? (
               <tr>
-                <td colSpan={totalColumnas} className="px-4 py-6 text-center text-stone-400">No hay entregas registradas.</td>
+                <td colSpan={totalColumnas} className="px-4 py-6 text-center text-stone-400">No hay movimientos registrados.</td>
               </tr>
             ) : (
               filas.map((f) => (
@@ -574,13 +642,14 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
                       type="checkbox"
                       checked={seleccionados.has(f.id)}
                       onChange={() => toggleSeleccionado(f.id)}
-                      aria-label={`Seleccionar entrega del ${f.fecha_entrega}`}
+                      aria-label={`Seleccionar movimiento del ${f.fecha}`}
                       className="h-4 w-4 rounded border-stone-300 accent-brand-700"
                     />
                   </td>
-                  <td className="px-4 py-2.5">{f.fecha_entrega}</td>
+                  <td className="px-4 py-2.5">{f.fecha}</td>
                   <td className="px-4 py-2.5">{f.alimento_nombre}</td>
-                  <td className="px-4 py-2.5">{f.lote_nombre}</td>
+                  <td className="px-4 py-2.5">{badgeTipo(f.tipo)}</td>
+                  <td className="px-4 py-2.5 text-stone-500">{detalle(f)}</td>
                   <td className="px-4 py-2.5">{f.cantidad} {f.unidad}</td>
                   <td className="px-4 py-2.5">{f.cargado_por_nombre}</td>
                   <td className="px-4 py-2.5 text-stone-500">{f.observaciones ?? ""}</td>
@@ -610,7 +679,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
                         >
                           {confirmandoBorrado === f.id ? (
                             <div className="px-3 py-2">
-                              <p className="mb-2 text-xs text-stone-600">¿Borrar esta entrega?</p>
+                              <p className="mb-2 text-xs text-stone-600">¿Borrar este movimiento?</p>
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => setConfirmandoBorrado(null)}
@@ -619,7 +688,7 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
                                   No
                                 </button>
                                 <button
-                                  onClick={() => borrarEntrega(f.id)}
+                                  onClick={() => borrarMovimiento(f)}
                                   disabled={borrando}
                                   className="flex-1 rounded bg-red-700 px-2 py-1 text-xs text-white hover:bg-red-800 disabled:opacity-60"
                                 >
@@ -654,31 +723,30 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
           </tbody>
         </table>
       </div>
-    </div>
 
-    <div className="mt-4 lg:mt-0 lg:w-72 lg:shrink-0">{resumenAlimentosPanel}</div>
-
-    {editando && (
+      {editando && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/30 p-4">
           <form
             onSubmit={guardarEdicion}
             className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 shadow-xl"
           >
-            <h2 className="text-lg font-bold text-stone-900">Editar entrega</h2>
+            <h2 className="text-lg font-bold text-stone-900">
+              Editar {editando.kind === "salida" ? "entrega" : "entrada"}
+            </h2>
 
             <div>
-              <label className="block text-sm font-medium text-stone-700">Fecha de entrega</label>
+              <label className="block text-sm font-medium text-stone-700">Fecha</label>
               <input
                 type="date"
                 required
-                value={editando.fecha_entrega}
-                onChange={(e) => setEditando({ ...editando, fecha_entrega: e.target.value })}
+                value={editando.fecha}
+                onChange={(e) => setEditando({ ...editando, fecha: e.target.value })}
                 className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-stone-700">Tipo de alimento</label>
+              <label className="block text-sm font-medium text-stone-700">Alimento</label>
               <select
                 required
                 value={editando.alimento_id}
@@ -691,19 +759,35 @@ export default function GrillaTable({ campoId, puedeEditar = true }: { campoId: 
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-stone-700">Lote destino</label>
-              <select
-                required
-                value={editando.lote_id}
-                onChange={(e) => setEditando({ ...editando, lote_id: e.target.value })}
-                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-              >
-                {lotes.map((l) => (
-                  <option key={l.id} value={l.id}>{l.nombre}</option>
-                ))}
-              </select>
-            </div>
+            {editando.kind === "salida" ? (
+              <div>
+                <label className="block text-sm font-medium text-stone-700">Lote destino</label>
+                <select
+                  required
+                  value={editando.lote_id}
+                  onChange={(e) => setEditando({ ...editando, lote_id: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+                >
+                  {lotes.map((l) => (
+                    <option key={l.id} value={l.id}>{l.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-stone-700">Proveedor (opcional)</label>
+                <select
+                  value={editando.proveedor_id}
+                  onChange={(e) => setEditando({ ...editando, proveedor_id: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+                >
+                  <option value="">Sin especificar</option>
+                  {proveedores.map((p) => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <div className="flex-1">
