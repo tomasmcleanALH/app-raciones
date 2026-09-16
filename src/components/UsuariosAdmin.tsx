@@ -315,21 +315,25 @@ export default function UsuariosAdmin({
           <ul>
             {usuarios.map((u) => (
               <li key={u.id} className="border-b border-stone-100 px-4 py-3.5 last:border-0">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <p className={`truncate font-medium ${u.activo ? "text-stone-900" : "text-stone-400 line-through"}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-medium ${u.activo ? "text-stone-900" : "text-stone-400 line-through"}`}>
                       {u.nombre}
                     </p>
-                    {esDueno && u.campo_nombres.map((nombreCampo) => (
-                      <span key={nombreCampo} className="shrink-0 rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">
-                        {nombreCampo}
-                      </span>
-                    ))}
-                    {esDueno && u.rol !== "dueno" && u.modulos.map((m) => (
-                      <span key={m} className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
-                        {ETIQUETA_MODULO[m]}
-                      </span>
-                    ))}
+                    {(u.campo_nombres.length > 0 || u.modulos.length > 0) && (
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {esDueno && u.campo_nombres.map((nombreCampo) => (
+                          <span key={nombreCampo} className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">
+                            {nombreCampo}
+                          </span>
+                        ))}
+                        {esDueno && u.rol !== "dueno" && u.modulos.map((m) => (
+                          <span key={m} className="rounded-full bg-stone-100 px-2 py-0.5 text-xs text-stone-500">
+                            {ETIQUETA_MODULO[m]}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   {u.id !== miPropioId && (
                     <div className="flex shrink-0 items-center gap-2">
