@@ -7,6 +7,12 @@ interface Item {
   id: string;
   nombre: string;
   activo: boolean;
+  categoria_id?: string | null;
+}
+
+interface Categoria {
+  id: string;
+  nombre: string;
 }
 
 interface Props {
@@ -14,34 +20,59 @@ interface Props {
     | "lotes"
     | "alimentos"
     | "proveedores_alimentos"
+    | "ubicaciones_alimentos"
+    | "categorias_alimentos"
     | "materiales"
     | "proveedores"
     | "contratistas"
-    | "lotes_materiales";
+    | "lotes_materiales"
+    | "categorias_materiales";
   titulo: string;
   /** Campo al que pertenecen (y al que se asigna lo que se agregue acá). */
   campoId: string;
   /** true = sólo puede ver la lista (rol Gerente); no agrega, edita, borra ni desactiva. */
   soloLectura?: boolean;
+  /** Sólo para "alimentos"/"materiales": catálogo de categorías para asignarle una a cada item. */
+  categorias?: Categoria[];
 }
 
-const ES_TABLA_STOCK = new Set(["materiales", "proveedores", "contratistas", "lotes_materiales"]);
 const SINGULAR: Record<Props["tabla"], string> = {
   lotes: "el lote",
   alimentos: "el alimento",
   proveedores_alimentos: "el proveedor",
+  ubicaciones_alimentos: "la ubicación",
+  categorias_alimentos: "la categoría",
   materiales: "el material",
   proveedores: "el proveedor",
   contratistas: "el contratista",
   lotes_materiales: "el lote",
+  categorias_materiales: "la categoría",
 };
 
-/** CRUD simple y genérico para "lotes"/"alimentos"/"proveedores_alimentos"
- * (módulo Alimentos) y "materiales"/"proveedores"/"contratistas"/
- * "lotes_materiales" (módulo Stock de materiales) — mismo formato. */
-export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = false }: Props) {
+/** Frases para los mensajes de borrado/desactivado, según qué usa cada catálogo. */
+const USO: Record<Props["tabla"], { nueva: string; ninguna: string; alguna: string }> = {
+  lotes: { nueva: "una entrega nueva", ninguna: "ninguna entrega", alguna: "alguna entrega" },
+  alimentos: { nueva: "una entrada o entrega nueva", ninguna: "ninguna entrada ni entrega", alguna: "alguna entrada o entrega" },
+  proveedores_alimentos: { nueva: "una entrada nueva", ninguna: "ninguna entrada", alguna: "alguna entrada de alimento" },
+  ubicaciones_alimentos: { nueva: "una entrada o entrega nueva", ninguna: "ninguna entrada ni entrega", alguna: "alguna entrada o entrega" },
+  categorias_alimentos: { nueva: "un alimento nuevo", ninguna: "ningún alimento", alguna: "algún alimento" },
+  materiales: { nueva: "un movimiento nuevo", ninguna: "ningún movimiento", alguna: "algún movimiento de stock" },
+  proveedores: { nueva: "un movimiento nuevo", ninguna: "ningún movimiento", alguna: "algún movimiento de stock" },
+  contratistas: { nueva: "un movimiento nuevo", ninguna: "ningún movimiento", alguna: "algún movimiento de stock" },
+  lotes_materiales: { nueva: "un movimiento nuevo", ninguna: "ningún movimiento", alguna: "algún movimiento de stock" },
+  categorias_materiales: { nueva: "un material nuevo", ninguna: "ningún material", alguna: "algún material" },
+};
+
+/** CRUD simple y genérico para "lotes"/"alimentos"/"proveedores_alimentos"/
+ * "ubicaciones_alimentos"/"categorias_alimentos" (módulo Alimentos) y
+ * "materiales"/"proveedores"/"contratistas"/"lotes_materiales"/
+ * "categorias_materiales" (módulo Stock de materiales) — mismo formato.
+ * Cuando se pasa `categorias`, el alta y la edición de cada item piden
+ * también a qué categoría pertenece (para agrupar el Stock disponible). */
+export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = false, categorias }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [nombreNuevo, setNombreNuevo] = useState("");
+  const [categoriaNueva, setCategoriaNueva] = useState("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,6 +83,7 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
 
   const [editando, setEditando] = useState<Item | null>(null);
   const [nombreEditado, setNombreEditado] = useState("");
+  const [categoriaEditada, setCategoriaEditada] = useState("");
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
 
@@ -72,12 +104,15 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
     e.preventDefault();
     if (!nombreNuevo.trim()) return;
     const supabase = createClient();
-    const { error } = await supabase.from(tabla).insert({ nombre: nombreNuevo.trim(), campo_id: campoId });
+    const payload: Record<string, unknown> = { nombre: nombreNuevo.trim(), campo_id: campoId };
+    if (categorias) payload.categoria_id = categoriaNueva || null;
+    const { error } = await supabase.from(tabla).insert(payload);
     if (error) {
       setError(error.message.includes("duplicate") ? "Ya existe uno con ese nombre." : error.message);
       return;
     }
     setNombreNuevo("");
+    setCategoriaNueva("");
     setError(null);
     recargar();
   }
@@ -94,6 +129,7 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
     setErrorEdicion(null);
     setEditando(item);
     setNombreEditado(item.nombre);
+    setCategoriaEditada(item.categoria_id ?? "");
   }
 
   async function guardarEdicion(e: React.FormEvent) {
@@ -102,10 +138,13 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
     setGuardandoEdicion(true);
     setErrorEdicion(null);
 
+    const payload: Record<string, unknown> = { nombre: nombreEditado.trim() };
+    if (categorias) payload.categoria_id = categoriaEditada || null;
+
     const supabase = createClient();
     const { error } = await supabase
       .from(tabla)
-      .update({ nombre: nombreEditado.trim() })
+      .update(payload)
       .eq("id", editando.id);
 
     setGuardandoEdicion(false);
@@ -130,14 +169,9 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
 
     if (error) {
       // 23503 = violación de llave foránea: ya se usó en alguna entrega/entrada/movimiento.
-      const usoTexto = ES_TABLA_STOCK.has(tabla)
-        ? "algún movimiento de stock"
-        : tabla === "proveedores_alimentos"
-          ? "alguna entrada de alimento"
-          : "alguna entrega";
       setErrorBorrado(
         error.code === "23503"
-          ? `No se puede borrar "${item.nombre}": ya se usó en ${usoTexto}. Desactivalo en cambio.`
+          ? `No se puede borrar "${item.nombre}": ya se usó en ${USO[tabla].alguna}. Desactivalo en cambio.`
           : error.message,
       );
       return;
@@ -152,13 +186,25 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
       <h1 className="mb-4 text-xl font-bold text-stone-900">{titulo}</h1>
 
       {!soloLectura && (
-        <form onSubmit={agregar} className="mb-4 flex gap-2">
+        <form onSubmit={agregar} className="mb-4 flex flex-wrap gap-2">
           <input
             value={nombreNuevo}
             onChange={(e) => setNombreNuevo(e.target.value)}
             placeholder="Nombre nuevo..."
-            className="flex-1 rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+            className="min-w-0 flex-1 rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
           />
+          {categorias && (
+            <select
+              value={categoriaNueva}
+              onChange={(e) => setCategoriaNueva(e.target.value)}
+              className="rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+            >
+              <option value="">Sin categoría</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          )}
           <button type="submit" className="rounded-lg bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-800">
             Agregar
           </button>
@@ -178,7 +224,14 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
             {items.map((item) => (
               <li key={item.id} className="border-b border-stone-100 px-4 py-3 last:border-0">
                 <div className="flex items-center justify-between">
-                  <span className={item.activo ? "" : "opacity-40"}>{item.nombre}</span>
+                  <span className={item.activo ? "" : "opacity-40"}>
+                    {item.nombre}
+                    {categorias && (
+                      <span className="ml-2 text-xs text-stone-400">
+                        · {categorias.find((c) => c.id === item.categoria_id)?.nombre ?? "Sin categoría"}
+                      </span>
+                    )}
+                  </span>
 
                   {!soloLectura && (
                   <div className="relative">
@@ -257,19 +310,8 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
       </div>
       {!soloLectura && (
       <p className="mt-2 text-xs text-stone-400">
-        Desactivar no borra el historial: sólo deja de aparecer como opción al cargar{" "}
-        {ES_TABLA_STOCK.has(tabla)
-          ? "un movimiento nuevo"
-          : tabla === "proveedores_alimentos"
-            ? "una entrada nueva"
-            : "una entrega nueva"}
-        . Borrar es permanente y sólo se puede hacer si todavía no se usó en{" "}
-        {ES_TABLA_STOCK.has(tabla)
-          ? "ningún movimiento"
-          : tabla === "proveedores_alimentos"
-            ? "ninguna entrada"
-            : "ninguna entrega"}
-        .
+        Desactivar no borra el historial: sólo deja de aparecer como opción al cargar {USO[tabla].nueva}. Borrar es
+        permanente y sólo se puede hacer si todavía no se usó en {USO[tabla].ninguna}.
       </p>
       )}
 
@@ -279,7 +321,7 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
             onSubmit={guardarEdicion}
             className="w-full max-w-sm space-y-4 rounded-xl bg-white p-5 shadow-xl"
           >
-            <h2 className="text-lg font-bold text-stone-900">Editar nombre</h2>
+            <h2 className="text-lg font-bold text-stone-900">Editar {singular}</h2>
 
             <input
               value={nombreEditado}
@@ -288,6 +330,22 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
               autoFocus
               className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
             />
+
+            {categorias && (
+              <div>
+                <label className="block text-sm font-medium text-stone-700">Categoría</label>
+                <select
+                  value={categoriaEditada}
+                  onChange={(e) => setCategoriaEditada(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+                >
+                  <option value="">Sin categoría</option>
+                  {categorias.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {errorEdicion && <p className="text-sm text-red-600">{errorEdicion}</p>}
 

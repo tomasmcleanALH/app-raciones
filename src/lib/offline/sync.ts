@@ -28,8 +28,17 @@ export async function sincronizarPendientes(): Promise<{ subidas: number; fallid
     const pendientes = await listarEntregasPendientes();
 
     for (const entrega of pendientes) {
-      const { client_id, fecha_entrega, lote_id, alimento_id, cantidad, unidad, observaciones, cargado_por } =
-        entrega;
+      const {
+        client_id,
+        fecha_entrega,
+        lote_id,
+        alimento_id,
+        cantidad,
+        unidad,
+        ubicacion_id,
+        observaciones,
+        cargado_por,
+      } = entrega;
 
       const { error } = await supabase.from("entregas").upsert(
         {
@@ -39,6 +48,7 @@ export async function sincronizarPendientes(): Promise<{ subidas: number; fallid
           alimento_id,
           cantidad,
           unidad,
+          ubicacion_id,
           observaciones,
           cargado_por,
         },

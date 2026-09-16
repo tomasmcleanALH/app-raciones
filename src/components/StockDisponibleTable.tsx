@@ -5,7 +5,10 @@ import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
 import type { TipoMovimiento } from "@/lib/types";
 
+const SIN_CATEGORIA = "Sin categoría";
+
 interface FilaStock {
+  categoria: string;
   material: string;
   unidad: string;
   total: number;
@@ -22,20 +25,25 @@ export default function StockDisponibleTable({ campoId }: { campoId: string }) {
     const supabase = createClient();
     const { data } = await supabase
       .from("movimientos_stock")
-      .select("material_id, tipo, cantidad, unidad, materiales!inner(nombre, campo_id)")
+      .select("material_id, tipo, cantidad, unidad, materiales!inner(nombre, campo_id, categorias_materiales(nombre))")
       .eq("materiales.campo_id", campoId);
 
     const mapa = new Map<string, FilaStock>();
     for (const m of (data ?? []) as any[]) {
+      const categoria = m.materiales?.categorias_materiales?.nombre ?? SIN_CATEGORIA;
       const nombre = m.materiales?.nombre ?? "—";
-      const clave = `${nombre}|${m.unidad}`;
+      const clave = `${categoria}|${nombre}|${m.unidad}`;
       const signo: TipoMovimiento = m.tipo;
       const cantidad = (signo === "entrada" ? 1 : -1) * Number(m.cantidad);
       const actual = mapa.get(clave);
       if (actual) actual.total += cantidad;
-      else mapa.set(clave, { material: nombre, unidad: m.unidad, total: cantidad });
+      else mapa.set(clave, { categoria, material: nombre, unidad: m.unidad, total: cantidad });
     }
-    setStock([...mapa.values()].sort((a, b) => a.material.localeCompare(b.material)));
+    setStock(
+      [...mapa.values()].sort(
+        (a, b) => a.categoria.localeCompare(b.categoria) || a.material.localeCompare(b.material),
+      ),
+    );
     setCargando(false);
   }, [campoId]);
 
@@ -47,13 +55,14 @@ export default function StockDisponibleTable({ campoId }: { campoId: string }) {
     if (stock.length === 0) return;
 
     const datos = stock.map((r) => ({
+      "Categoría": r.categoria,
       "Material": r.material,
       "Disponible": r.total,
       "Unidad": r.unidad,
     }));
 
     const hoja = XLSX.utils.json_to_sheet(datos);
-    hoja["!cols"] = [{ wch: 24 }, { wch: 12 }, { wch: 10 }];
+    hoja["!cols"] = [{ wch: 18 }, { wch: 24 }, { wch: 12 }, { wch: 10 }];
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, "Stock disponible");
 
@@ -99,6 +108,18 @@ export default function StockDisponibleTable({ campoId }: { campoId: string }) {
     </button>
   );
 
+  const stockPorCategoria = new Map<string, FilaStock[]>();
+  for (const fila of stock) {
+    const lista = stockPorCategoria.get(fila.categoria) ?? [];
+    lista.push(fila);
+    stockPorCategoria.set(fila.categoria, lista);
+  }
+  const categoriasOrdenadas = [...stockPorCategoria.entries()].sort(([a], [b]) => {
+    if (a === SIN_CATEGORIA) return 1;
+    if (b === SIN_CATEGORIA) return -1;
+    return a.localeCompare(b);
+  });
+
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -114,16 +135,23 @@ export default function StockDisponibleTable({ campoId }: { campoId: string }) {
       ) : stock.length === 0 ? (
         <p className="text-sm text-stone-400">Todavía no hay movimientos cargados.</p>
       ) : (
-        <ul className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-          {stock.map((r) => (
-            <li key={`${r.material}|${r.unidad}`} className="flex items-baseline justify-between gap-3 border-b border-stone-100 py-1.5 text-sm">
-              <span className="text-stone-600">{r.material}</span>
-              <span className="shrink-0 font-semibold text-stone-900">
-                {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
-              </span>
-            </li>
+        <div className="space-y-4">
+          {categoriasOrdenadas.map(([categoria, filas]) => (
+            <div key={categoria}>
+              <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400">{categoria}</h3>
+              <ul className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+                {filas.map((r) => (
+                  <li key={`${r.material}|${r.unidad}`} className="flex items-baseline justify-between gap-3 border-b border-stone-100 py-1.5 text-sm">
+                    <span className="text-stone-600">{r.material}</span>
+                    <span className="shrink-0 font-semibold text-stone-900">
+                      {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

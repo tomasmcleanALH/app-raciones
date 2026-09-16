@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import CatalogoAdmin from "./CatalogoAdmin";
+import { createClient } from "@/lib/supabase/client";
 
 const TABS = [
   { tabla: "alimentos", titulo: "Alimentos" },
   { tabla: "lotes", titulo: "Lotes" },
   { tabla: "proveedores_alimentos", titulo: "Proveedores" },
+  { tabla: "ubicaciones_alimentos", titulo: "Ubicaciones" },
+  { tabla: "categorias_alimentos", titulo: "Categorías" },
 ] as const;
 
 type Tabla = (typeof TABS)[number]["tabla"];
@@ -16,7 +19,18 @@ type Tabla = (typeof TABS)[number]["tabla"];
  * internas (igual que la Base de datos de Materiales). */
 export default function BaseDeDatosAlimentos({ campoId, soloLectura }: { campoId: string; soloLectura: boolean }) {
   const [activa, setActiva] = useState<Tabla>("alimentos");
+  const [categorias, setCategorias] = useState<{ id: string; nombre: string }[]>([]);
   const tabActiva = TABS.find((t) => t.tabla === activa)!;
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("categorias_alimentos")
+      .select("id, nombre")
+      .eq("campo_id", campoId)
+      .order("nombre")
+      .then(({ data }) => setCategorias(data ?? []));
+  }, [campoId]);
 
   return (
     <div>
@@ -42,6 +56,7 @@ export default function BaseDeDatosAlimentos({ campoId, soloLectura }: { campoId
         titulo={tabActiva.titulo}
         campoId={campoId}
         soloLectura={soloLectura}
+        categorias={tabActiva.tabla === "alimentos" ? categorias : undefined}
       />
     </div>
   );

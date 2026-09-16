@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import type { Alimento, Contratista, Lote, LoteMaterial, Material, Proveedor } from "@/lib/types";
+import type { Alimento, Contratista, Lote, LoteMaterial, Material, Proveedor, UbicacionAlimento } from "@/lib/types";
 
 async function conCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
   try {
@@ -40,6 +40,21 @@ export async function getAlimentosActivos(campoId: string): Promise<Alimento[]> 
       .order("nombre");
     if (error) throw error;
     return data as Alimento[];
+  });
+}
+
+/** Ubicaciones de stock de alimentos activas del campo. Si no hay señal, devuelve la última lista vista. */
+export async function getUbicacionesActivas(campoId: string): Promise<UbicacionAlimento[]> {
+  return conCache(`app-raciones:cache:ubicaciones_alimentos:${campoId}`, async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("ubicaciones_alimentos")
+      .select("*")
+      .eq("campo_id", campoId)
+      .eq("activo", true)
+      .order("nombre");
+    if (error) throw error;
+    return data as UbicacionAlimento[];
   });
 }
 

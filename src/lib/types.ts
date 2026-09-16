@@ -30,6 +30,25 @@ export interface Alimento {
   id: string;
   campo_id: string;
   nombre: string;
+  categoria_id: string | null;
+  activo: boolean;
+  created_at: string;
+}
+
+/** Categoría de alimento (agrupa la vista de Stock disponible). */
+export interface CategoriaAlimento {
+  id: string;
+  campo_id: string;
+  nombre: string;
+  activo: boolean;
+  created_at: string;
+}
+
+/** Ubicación del stock de alimentos (el mismo alimento puede estar repartido en varios lugares del campo). */
+export interface UbicacionAlimento {
+  id: string;
+  campo_id: string;
+  nombre: string;
   activo: boolean;
   created_at: string;
 }
@@ -42,6 +61,7 @@ export interface Entrega {
   alimento_id: string;
   cantidad: number;
   unidad: string;
+  ubicacion_id: string | null;
   observaciones: string | null;
   cargado_por: string;
   created_at: string;
@@ -51,6 +71,7 @@ export interface Entrega {
 export interface EntregaConNombres extends Entrega {
   lote_nombre: string;
   alimento_nombre: string;
+  ubicacion_nombre: string | null;
   cargado_por_nombre: string;
 }
 
@@ -71,6 +92,7 @@ export interface EntradaAlimento {
   cantidad: number;
   unidad: string;
   proveedor_id: string | null;
+  ubicacion_id: string | null;
   observaciones: string | null;
   cargado_por: string;
   created_at: string;
@@ -79,6 +101,7 @@ export interface EntradaAlimento {
 export interface EntradaAlimentoConNombres extends EntradaAlimento {
   alimento_nombre: string;
   proveedor_nombre: string | null;
+  ubicacion_nombre: string | null;
   cargado_por_nombre: string;
 }
 
@@ -87,6 +110,16 @@ export interface EntradaAlimentoConNombres extends EntradaAlimento {
 // ------------------------------------------------------------
 
 export interface Material {
+  id: string;
+  campo_id: string;
+  nombre: string;
+  categoria_id: string | null;
+  activo: boolean;
+  created_at: string;
+}
+
+/** Categoría de material (agrupa la vista de Stock disponible). */
+export interface CategoriaMaterial {
   id: string;
   campo_id: string;
   nombre: string;

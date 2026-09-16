@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
-import type { Alimento, Lote, Profile, ProveedorAlimento, TipoMovimiento } from "@/lib/types";
+import type { Alimento, Lote, Profile, ProveedorAlimento, TipoMovimiento, UbicacionAlimento } from "@/lib/types";
 
 interface FilaHistorial {
   id: string;
@@ -20,6 +20,8 @@ interface FilaHistorial {
   lote_nombre: string | null;
   proveedor_id: string | null;
   proveedor_nombre: string | null;
+  ubicacion_id: string | null;
+  ubicacion_nombre: string | null;
 }
 
 type Editable =
@@ -29,6 +31,7 @@ type Editable =
       fecha: string;
       lote_id: string;
       alimento_id: string;
+      ubicacion_id: string;
       cantidad: string;
       unidad: string;
       observaciones: string;
@@ -39,6 +42,7 @@ type Editable =
       fecha: string;
       alimento_id: string;
       proveedor_id: string;
+      ubicacion_id: string;
       cantidad: string;
       unidad: string;
       observaciones: string;
@@ -49,12 +53,14 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorAlimento[]>([]);
+  const [ubicaciones, setUbicaciones] = useState<UbicacionAlimento[]>([]);
   const [usuarios, setUsuarios] = useState<Profile[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [filtroAlimento, setFiltroAlimento] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
+  const [filtroUbicacion, setFiltroUbicacion] = useState("");
   const [filtroUsuario, setFiltroUsuario] = useState("");
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
@@ -75,15 +81,17 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
       supabase.from("alimentos").select("*").eq("campo_id", campoId).order("nombre"),
       supabase.from("lotes").select("*").eq("campo_id", campoId).order("nombre"),
       supabase.from("proveedores_alimentos").select("*").eq("campo_id", campoId).order("nombre"),
+      supabase.from("ubicaciones_alimentos").select("*").eq("campo_id", campoId).order("nombre"),
       supabase
         .from("profiles")
         .select("*, usuarios_campos!inner(campo_id), usuarios_modulos!inner(modulo)")
         .eq("usuarios_campos.campo_id", campoId)
         .eq("usuarios_modulos.modulo", "alimentos"),
-    ]).then(([a, l, p, u]) => {
+    ]).then(([a, l, p, ub, u]) => {
       setAlimentos((a.data ?? []) as Alimento[]);
       setLotes((l.data ?? []) as Lote[]);
       setProveedores((p.data ?? []) as ProveedorAlimento[]);
+      setUbicaciones((ub.data ?? []) as UbicacionAlimento[]);
       setUsuarios(((u.data ?? []) as Profile[]).sort((a, b) => a.nombre.localeCompare(b.nombre)));
     });
   }, [campoId]);
@@ -99,10 +107,11 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
       let q = supabase
         .from("entradas_alimentos")
         .select(
-          "id, fecha, cantidad, unidad, observaciones, created_at, alimento_id, proveedor_id, alimentos!inner(nombre, campo_id), proveedores_alimentos(nombre), profiles(nombre)",
+          "id, fecha, cantidad, unidad, observaciones, created_at, alimento_id, proveedor_id, ubicacion_id, alimentos!inner(nombre, campo_id), proveedores_alimentos(nombre), ubicaciones_alimentos(nombre), profiles(nombre)",
         )
         .eq("alimentos.campo_id", campoId);
       if (filtroAlimento) q = q.eq("alimento_id", filtroAlimento);
+      if (filtroUbicacion) q = q.eq("ubicacion_id", filtroUbicacion);
       if (filtroUsuario) q = q.eq("cargado_por", filtroUsuario);
       if (filtroDesde) q = q.gte("fecha", filtroDesde);
       if (filtroHasta) q = q.lte("fecha", filtroHasta);
@@ -129,6 +138,8 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
           lote_nombre: null,
           proveedor_id: e.proveedor_id,
           proveedor_nombre: e.proveedores_alimentos?.nombre ?? null,
+          ubicacion_id: e.ubicacion_id,
+          ubicacion_nombre: e.ubicaciones_alimentos?.nombre ?? null,
         });
       }
     }
@@ -137,10 +148,11 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
       let q = supabase
         .from("entregas")
         .select(
-          "id, fecha_entrega, cantidad, unidad, observaciones, created_at, alimento_id, lote_id, lotes!inner(nombre, campo_id), alimentos(nombre), profiles(nombre)",
+          "id, fecha_entrega, cantidad, unidad, observaciones, created_at, alimento_id, lote_id, ubicacion_id, lotes!inner(nombre, campo_id), alimentos(nombre), ubicaciones_alimentos(nombre), profiles(nombre)",
         )
         .eq("lotes.campo_id", campoId);
       if (filtroAlimento) q = q.eq("alimento_id", filtroAlimento);
+      if (filtroUbicacion) q = q.eq("ubicacion_id", filtroUbicacion);
       if (filtroUsuario) q = q.eq("cargado_por", filtroUsuario);
       if (filtroDesde) q = q.gte("fecha_entrega", filtroDesde);
       if (filtroHasta) q = q.lte("fecha_entrega", filtroHasta);
@@ -167,6 +179,8 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
           lote_nombre: s.lotes?.nombre ?? null,
           proveedor_id: null,
           proveedor_nombre: null,
+          ubicacion_id: s.ubicacion_id,
+          ubicacion_nombre: s.ubicaciones_alimentos?.nombre ?? null,
         });
       }
     }
@@ -175,7 +189,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
     setFilas(resultado);
     setSeleccionados(new Set());
     setCargando(false);
-  }, [campoId, filtroAlimento, filtroTipo, filtroUsuario, filtroDesde, filtroHasta]);
+  }, [campoId, filtroAlimento, filtroTipo, filtroUbicacion, filtroUsuario, filtroDesde, filtroHasta]);
 
   useEffect(() => {
     cargarMovimientos();
@@ -184,7 +198,8 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
   const totalColumnas = puedeEditar ? 10 : 9;
 
   function detalle(f: FilaHistorial) {
-    return f.tipo === "entrada" ? `Proveedor: ${f.proveedor_nombre ?? "—"}` : `Lote: ${f.lote_nombre ?? "—"}`;
+    const base = f.tipo === "entrada" ? `Proveedor: ${f.proveedor_nombre ?? "—"}` : `Lote: ${f.lote_nombre ?? "—"}`;
+    return `${base} · Ubicación: ${f.ubicacion_nombre ?? "—"}`;
   }
 
   /** El menú "⋮" se posiciona con position:fixed (según el botón que lo abrió)
@@ -214,6 +229,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
             fecha: f.fecha,
             lote_id: f.lote_id ?? "",
             alimento_id: f.alimento_id,
+            ubicacion_id: f.ubicacion_id ?? "",
             cantidad: String(f.cantidad),
             unidad: f.unidad,
             observaciones: f.observaciones ?? "",
@@ -224,6 +240,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
             fecha: f.fecha,
             alimento_id: f.alimento_id,
             proveedor_id: f.proveedor_id ?? "",
+            ubicacion_id: f.ubicacion_id ?? "",
             cantidad: String(f.cantidad),
             unidad: f.unidad,
             observaciones: f.observaciones ?? "",
@@ -246,6 +263,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
               fecha_entrega: editando.fecha,
               lote_id: editando.lote_id,
               alimento_id: editando.alimento_id,
+              ubicacion_id: editando.ubicacion_id || null,
               cantidad: Number(editando.cantidad),
               unidad: editando.unidad,
               observaciones: editando.observaciones.trim() || null,
@@ -257,6 +275,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
               fecha: editando.fecha,
               alimento_id: editando.alimento_id,
               proveedor_id: editando.proveedor_id || null,
+              ubicacion_id: editando.ubicacion_id || null,
               cantidad: Number(editando.cantidad),
               unidad: editando.unidad,
               observaciones: editando.observaciones.trim() || null,
@@ -309,6 +328,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
       "Tipo": f.tipo === "entrada" ? "Entrada" : "Salida",
       "Proveedor": f.proveedor_nombre ?? "",
       "Lote destino": f.lote_nombre ?? "",
+      "Ubicación": f.ubicacion_nombre ?? "",
       "Cantidad": f.cantidad,
       "Unidad": f.unidad,
       "Cargado por": f.cargado_por_nombre,
@@ -318,7 +338,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
 
     const hoja = XLSX.utils.json_to_sheet(datos);
     hoja["!cols"] = [
-      { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 18 }, { wch: 16 },
+      { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 18 }, { wch: 16 }, { wch: 16 },
       { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 30 }, { wch: 18 },
     ];
     const libro = XLSX.utils.book_new();
@@ -328,7 +348,9 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
     XLSX.writeFile(libro, `historial-alimentos-${hoy}.xlsx`);
   }
 
-  const hayFiltrosActivos = !!(filtroAlimento || filtroTipo || filtroUsuario || filtroDesde || filtroHasta);
+  const hayFiltrosActivos = !!(
+    filtroAlimento || filtroTipo || filtroUbicacion || filtroUsuario || filtroDesde || filtroHasta
+  );
 
   const controlesFiltro = (
     <>
@@ -351,6 +373,17 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
         <option value="">Entradas y salidas</option>
         <option value="entrada">Sólo entradas</option>
         <option value="salida">Sólo salidas</option>
+      </select>
+
+      <select
+        value={filtroUbicacion}
+        onChange={(e) => setFiltroUbicacion(e.target.value)}
+        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+      >
+        <option value="">Todas las ubicaciones</option>
+        {ubicaciones.map((u) => (
+          <option key={u.id} value={u.id}>{u.nombre}</option>
+        ))}
       </select>
 
       <select
@@ -384,6 +417,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
           onClick={() => {
             setFiltroAlimento("");
             setFiltroTipo("");
+            setFiltroUbicacion("");
             setFiltroUsuario("");
             setFiltroDesde("");
             setFiltroHasta("");
@@ -788,6 +822,20 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
                 </select>
               </div>
             )}
+
+            <div>
+              <label className="block text-sm font-medium text-stone-700">Ubicación</label>
+              <select
+                value={editando.ubicacion_id}
+                onChange={(e) => setEditando({ ...editando, ubicacion_id: e.target.value })}
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+              >
+                <option value="">Sin especificar</option>
+                {ubicaciones.map((u) => (
+                  <option key={u.id} value={u.id}>{u.nombre}</option>
+                ))}
+              </select>
+            </div>
 
             <div className="flex gap-3">
               <div className="flex-1">

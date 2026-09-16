@@ -85,12 +85,37 @@ create table if not exists public.lotes (
 );
 
 -- ------------------------------------------------------------
+-- Categorías de Alimentos (para agrupar la vista de Stock
+-- disponible) y Ubicaciones de Alimentos (dónde está guardado
+-- el stock: el mismo alimento puede estar repartido en varios
+-- lugares del campo).
+-- ------------------------------------------------------------
+create table if not exists public.categorias_alimentos (
+  id uuid primary key default gen_random_uuid(),
+  campo_id uuid not null references public.campos (id),
+  nombre text not null,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (campo_id, nombre)
+);
+
+create table if not exists public.ubicaciones_alimentos (
+  id uuid primary key default gen_random_uuid(),
+  campo_id uuid not null references public.campos (id),
+  nombre text not null,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (campo_id, nombre)
+);
+
+-- ------------------------------------------------------------
 -- Tabla: alimentos (pertenece a un campo)
 -- ------------------------------------------------------------
 create table if not exists public.alimentos (
   id uuid primary key default gen_random_uuid(),
   campo_id uuid not null references public.campos (id),
   nombre text not null,
+  categoria_id uuid references public.categorias_alimentos (id),
   activo boolean not null default true,
   created_at timestamptz not null default now(),
   unique (campo_id, nombre)
@@ -110,6 +135,7 @@ create table if not exists public.entregas (
   alimento_id uuid not null references public.alimentos (id),
   cantidad numeric(10, 2) not null check (cantidad > 0),
   unidad text not null default 'kg',
+  ubicacion_id uuid references public.ubicaciones_alimentos (id),
   observaciones text,
   cargado_por uuid not null references public.profiles (id),
   created_at timestamptz not null default now()
@@ -140,6 +166,7 @@ create table if not exists public.entradas_alimentos (
   cantidad numeric(10, 2) not null check (cantidad > 0),
   unidad text not null default 'kg',
   proveedor_id uuid references public.proveedores_alimentos (id),
+  ubicacion_id uuid references public.ubicaciones_alimentos (id),
   observaciones text,
   cargado_por uuid not null references public.profiles (id),
   created_at timestamptz not null default now()
@@ -154,10 +181,20 @@ create index if not exists entradas_alimentos_cargado_por_idx on public.entradas
 -- necesita el módulo "materiales" (ver usuarios_modulos más
 -- arriba) para ver o tocar esto.
 -- ------------------------------------------------------------
+create table if not exists public.categorias_materiales (
+  id uuid primary key default gen_random_uuid(),
+  campo_id uuid not null references public.campos (id),
+  nombre text not null,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (campo_id, nombre)
+);
+
 create table if not exists public.materiales (
   id uuid primary key default gen_random_uuid(),
   campo_id uuid not null references public.campos (id),
   nombre text not null,
+  categoria_id uuid references public.categorias_materiales (id),
   activo boolean not null default true,
   created_at timestamptz not null default now(),
   unique (campo_id, nombre)
@@ -330,10 +367,13 @@ alter table public.usuarios_campos enable row level security;
 alter table public.usuarios_modulos enable row level security;
 alter table public.campo_modulos enable row level security;
 alter table public.lotes enable row level security;
+alter table public.categorias_alimentos enable row level security;
+alter table public.ubicaciones_alimentos enable row level security;
 alter table public.alimentos enable row level security;
 alter table public.entregas enable row level security;
 alter table public.proveedores_alimentos enable row level security;
 alter table public.entradas_alimentos enable row level security;
+alter table public.categorias_materiales enable row level security;
 alter table public.materiales enable row level security;
 alter table public.proveedores enable row level security;
 alter table public.contratistas enable row level security;
@@ -410,6 +450,53 @@ create policy lotes_select on public.lotes
 
 drop policy if exists lotes_modificar on public.lotes;
 create policy lotes_modificar on public.lotes
+  for all to authenticated
+  using (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  )
+  with check (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  );
+
+-- categorias_alimentos / ubicaciones_alimentos: mismo esquema que lotes
+drop policy if exists categorias_alimentos_select on public.categorias_alimentos;
+create policy categorias_alimentos_select on public.categorias_alimentos
+  for select to authenticated
+  using (
+    public.tiene_acceso_a_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  );
+
+drop policy if exists categorias_alimentos_modificar on public.categorias_alimentos;
+create policy categorias_alimentos_modificar on public.categorias_alimentos
+  for all to authenticated
+  using (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  )
+  with check (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  );
+
+drop policy if exists ubicaciones_alimentos_select on public.ubicaciones_alimentos;
+create policy ubicaciones_alimentos_select on public.ubicaciones_alimentos
+  for select to authenticated
+  using (
+    public.tiene_acceso_a_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  );
+
+drop policy if exists ubicaciones_alimentos_modificar on public.ubicaciones_alimentos;
+create policy ubicaciones_alimentos_modificar on public.ubicaciones_alimentos
   for all to authenticated
   using (
     public.es_admin_de_campo(campo_id)
@@ -575,6 +662,30 @@ create policy entradas_alimentos_delete on public.entradas_alimentos
       and public.es_admin_de_campo(a.campo_id) and public.tiene_acceso_a_modulo('alimentos')
       and public.campo_tiene_modulo(a.campo_id, 'alimentos')
   ));
+
+-- categorias_materiales: mismo esquema que proveedores/contratistas
+drop policy if exists categorias_materiales_select on public.categorias_materiales;
+create policy categorias_materiales_select on public.categorias_materiales
+  for select to authenticated
+  using (
+    public.tiene_acceso_a_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  );
+
+drop policy if exists categorias_materiales_modificar on public.categorias_materiales;
+create policy categorias_materiales_modificar on public.categorias_materiales
+  for all to authenticated
+  using (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  )
+  with check (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('materiales')
+    and public.campo_tiene_modulo(campo_id, 'materiales')
+  );
 
 -- materiales: todos los del campo Y del módulo Materiales leen (el
 -- usuario Y el campo tienen que tener Materiales habilitado); sólo

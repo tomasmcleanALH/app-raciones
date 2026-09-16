@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { createClient } from "@/lib/supabase/client";
-import { getAlimentosActivos, getLotesActivos } from "@/lib/offline/catalogos";
+import { getAlimentosActivos, getLotesActivos, getUbicacionesActivas } from "@/lib/offline/catalogos";
 import { guardarEntregaPendiente } from "@/lib/offline/db";
 import { notificarCambio, sincronizarPendientes } from "@/lib/offline/sync";
-import type { Alimento, Lote } from "@/lib/types";
+import type { Alimento, Lote, UbicacionAlimento } from "@/lib/types";
 
 function hoyISO() {
   const d = new Date();
@@ -17,11 +17,13 @@ function hoyISO() {
 export default function EntregaForm({ userId, campoId }: { userId: string; campoId: string }) {
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
+  const [ubicaciones, setUbicaciones] = useState<UbicacionAlimento[]>([]);
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
 
   const [fecha, setFecha] = useState(hoyISO());
   const [loteId, setLoteId] = useState("");
   const [alimentoId, setAlimentoId] = useState("");
+  const [ubicacionId, setUbicacionId] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState("kg");
   const [observaciones, setObservaciones] = useState("");
@@ -31,10 +33,11 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
   const [revisando, setRevisando] = useState(false);
 
   useEffect(() => {
-    Promise.all([getLotesActivos(campoId), getAlimentosActivos(campoId)])
-      .then(([l, a]) => {
+    Promise.all([getLotesActivos(campoId), getAlimentosActivos(campoId), getUbicacionesActivas(campoId)])
+      .then(([l, a, u]) => {
         setLotes(l);
         setAlimentos(a);
+        setUbicaciones(u);
       })
       .catch(() => {
         setMensaje({ tipo: "error", texto: "No se pudieron cargar los lotes/alimentos. Conectate una vez a wifi y volvé a intentar." });
@@ -51,7 +54,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
   function handlePasarARevision(e: React.FormEvent) {
     e.preventDefault();
     setMensaje(null);
-    if (!loteId || !alimentoId || !cantidad) return;
+    if (!loteId || !alimentoId || !cantidad || !ubicacionId) return;
     setRevisando(true);
   }
 
@@ -65,6 +68,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
       alimento_id: alimentoId,
       cantidad: Number(cantidad),
       unidad,
+      ubicacion_id: ubicacionId,
       observaciones: observaciones.trim() || null,
       cargado_por: userId,
     };
@@ -101,10 +105,10 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
     return <p className="text-sm text-stone-500">Cargando...</p>;
   }
 
-  if (lotes.length === 0 || alimentos.length === 0) {
+  if (lotes.length === 0 || alimentos.length === 0 || ubicaciones.length === 0) {
     return (
       <p className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
-        Todavía no hay lotes o tipos de alimento cargados. Pedile al administrador que los cree en
+        Todavía no hay lotes, tipos de alimento o ubicaciones cargadas. Pedile al administrador que los cree en
         Administración antes de registrar entregas.
       </p>
     );
@@ -113,6 +117,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
   if (revisando) {
     const nombreAlimento = alimentos.find((a) => a.id === alimentoId)?.nombre ?? "—";
     const nombreLote = lotes.find((l) => l.id === loteId)?.nombre ?? "—";
+    const nombreUbicacion = ubicaciones.find((u) => u.id === ubicacionId)?.nombre ?? "—";
 
     return (
       <div className="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
@@ -123,6 +128,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
             ["Fecha de entrega", fecha],
             ["Tipo de alimento", nombreAlimento],
             ["Lote destino", nombreLote],
+            ["Ubicación", nombreUbicacion],
             ["Cantidad", `${cantidad} ${unidad}`],
             ["Observaciones", observaciones.trim() || "—"],
           ].map(([label, valor]) => (
@@ -208,6 +214,21 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
           <option value="" disabled>Elegir...</option>
           {lotes.map((l) => (
             <option key={l.id} value={l.id}>{l.nombre}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-stone-700">Ubicación (de dónde se saca)</label>
+        <select
+          required
+          value={ubicacionId}
+          onChange={(e) => setUbicacionId(e.target.value)}
+          className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+        >
+          <option value="" disabled>Elegir...</option>
+          {ubicaciones.map((u) => (
+            <option key={u.id} value={u.id}>{u.nombre}</option>
           ))}
         </select>
       </div>

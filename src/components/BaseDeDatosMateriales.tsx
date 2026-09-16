@@ -1,23 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import CatalogoAdmin from "./CatalogoAdmin";
+import { createClient } from "@/lib/supabase/client";
 
 const TABS = [
   { tabla: "materiales", titulo: "Materiales" },
   { tabla: "proveedores", titulo: "Proveedores" },
   { tabla: "contratistas", titulo: "Contratistas" },
   { tabla: "lotes_materiales", titulo: "Lotes" },
+  { tabla: "categorias_materiales", titulo: "Categorías" },
 ] as const;
 
 type Tabla = (typeof TABS)[number]["tabla"];
 
-/** Base de datos del módulo Materiales: los 4 catálogos que se usan al
+/** Base de datos del módulo Materiales: los 5 catálogos que se usan al
  * cargar un movimiento de stock (Entrada pide Proveedor; Salida pide
  * Contratista y Lote), todos en un solo lugar con solapas internas. */
 export default function BaseDeDatosMateriales({ campoId, soloLectura }: { campoId: string; soloLectura: boolean }) {
   const [activa, setActiva] = useState<Tabla>("materiales");
+  const [categorias, setCategorias] = useState<{ id: string; nombre: string }[]>([]);
   const tabActiva = TABS.find((t) => t.tabla === activa)!;
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("categorias_materiales")
+      .select("id, nombre")
+      .eq("campo_id", campoId)
+      .order("nombre")
+      .then(({ data }) => setCategorias(data ?? []));
+  }, [campoId]);
 
   return (
     <div>
@@ -43,6 +56,7 @@ export default function BaseDeDatosMateriales({ campoId, soloLectura }: { campoI
         titulo={tabActiva.titulo}
         campoId={campoId}
         soloLectura={soloLectura}
+        categorias={tabActiva.tabla === "materiales" ? categorias : undefined}
       />
     </div>
   );

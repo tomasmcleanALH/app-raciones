@@ -3,10 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
-import type { Alimento, ProveedorAlimento } from "@/lib/types";
+import type { Alimento, ProveedorAlimento, UbicacionAlimento } from "@/lib/types";
+
+const SIN_CATEGORIA = "Sin categoría";
+const SIN_UBICACION = "Sin ubicación";
 
 interface FilaStock {
+  categoria: string;
   alimento: string;
+  ubicacion: string;
   unidad: string;
   total: number;
 }
@@ -34,9 +39,11 @@ export default function StockDisponibleAlimentos({
   const [agregando, setAgregando] = useState(false);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorAlimento[]>([]);
+  const [ubicaciones, setUbicaciones] = useState<UbicacionAlimento[]>([]);
   const [fecha, setFecha] = useState(hoyISO());
   const [alimentoId, setAlimentoId] = useState("");
   const [proveedorId, setProveedorId] = useState("");
+  const [ubicacionId, setUbicacionId] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState("kg");
   const [observaciones, setObservaciones] = useState("");
@@ -49,30 +56,48 @@ export default function StockDisponibleAlimentos({
     const [{ data: entradas }, { data: entregas }] = await Promise.all([
       supabase
         .from("entradas_alimentos")
-        .select("cantidad, unidad, alimentos!inner(nombre, campo_id)")
+        .select("cantidad, unidad, alimentos!inner(nombre, campo_id, categorias_alimentos(nombre)), ubicaciones_alimentos(nombre)")
         .eq("alimentos.campo_id", campoId),
       supabase
         .from("entregas")
-        .select("cantidad, unidad, lotes!inner(campo_id), alimentos(nombre)")
+        .select("cantidad, unidad, lotes!inner(campo_id), alimentos(nombre, categorias_alimentos(nombre)), ubicaciones_alimentos(nombre)")
         .eq("lotes.campo_id", campoId),
     ]);
 
     const mapa = new Map<string, FilaStock>();
-    for (const e of (entradas ?? []) as any[]) {
-      const nombre = e.alimentos?.nombre ?? "—";
-      const clave = `${nombre}|${e.unidad}`;
+    function sumar(categoria: string, alimento: string, ubicacion: string, unidad: string, delta: number) {
+      const clave = `${categoria}|${alimento}|${ubicacion}|${unidad}`;
       const actual = mapa.get(clave);
-      if (actual) actual.total += Number(e.cantidad);
-      else mapa.set(clave, { alimento: nombre, unidad: e.unidad, total: Number(e.cantidad) });
+      if (actual) actual.total += delta;
+      else mapa.set(clave, { categoria, alimento, ubicacion, unidad, total: delta });
+    }
+
+    for (const e of (entradas ?? []) as any[]) {
+      sumar(
+        e.alimentos?.categorias_alimentos?.nombre ?? SIN_CATEGORIA,
+        e.alimentos?.nombre ?? "—",
+        e.ubicaciones_alimentos?.nombre ?? SIN_UBICACION,
+        e.unidad,
+        Number(e.cantidad),
+      );
     }
     for (const s of (entregas ?? []) as any[]) {
-      const nombre = s.alimentos?.nombre ?? "—";
-      const clave = `${nombre}|${s.unidad}`;
-      const actual = mapa.get(clave);
-      if (actual) actual.total -= Number(s.cantidad);
-      else mapa.set(clave, { alimento: nombre, unidad: s.unidad, total: -Number(s.cantidad) });
+      sumar(
+        s.alimentos?.categorias_alimentos?.nombre ?? SIN_CATEGORIA,
+        s.alimentos?.nombre ?? "—",
+        s.ubicaciones_alimentos?.nombre ?? SIN_UBICACION,
+        s.unidad,
+        -Number(s.cantidad),
+      );
     }
-    setStock([...mapa.values()].sort((a, b) => a.alimento.localeCompare(b.alimento)));
+    setStock(
+      [...mapa.values()].sort(
+        (a, b) =>
+          a.categoria.localeCompare(b.categoria) ||
+          a.alimento.localeCompare(b.alimento) ||
+          a.ubicacion.localeCompare(b.ubicacion),
+      ),
+    );
     setCargando(false);
   }, [campoId]);
 
@@ -85,6 +110,7 @@ export default function StockDisponibleAlimentos({
     setFecha(hoyISO());
     setAlimentoId("");
     setProveedorId("");
+    setUbicacionId("");
     setCantidad("");
     setUnidad("kg");
     setObservaciones("");
@@ -94,15 +120,17 @@ export default function StockDisponibleAlimentos({
     Promise.all([
       supabase.from("alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
       supabase.from("proveedores_alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
-    ]).then(([a, p]) => {
+      supabase.from("ubicaciones_alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
+    ]).then(([a, p, u]) => {
       setAlimentos((a.data ?? []) as Alimento[]);
       setProveedores((p.data ?? []) as ProveedorAlimento[]);
+      setUbicaciones((u.data ?? []) as UbicacionAlimento[]);
     });
   }
 
   async function guardarEntrada(e: React.FormEvent) {
     e.preventDefault();
-    if (!alimentoId || !cantidad) return;
+    if (!alimentoId || !cantidad || !ubicacionId) return;
     setEnviando(true);
     setErrorAgregar(null);
 
@@ -113,6 +141,7 @@ export default function StockDisponibleAlimentos({
       cantidad: Number(cantidad),
       unidad,
       proveedor_id: proveedorId || null,
+      ubicacion_id: ubicacionId,
       observaciones: observaciones.trim() || null,
       cargado_por: userId,
     });
@@ -132,19 +161,33 @@ export default function StockDisponibleAlimentos({
     if (stock.length === 0) return;
 
     const datos = stock.map((r) => ({
+      "Categoría": r.categoria,
       "Alimento": r.alimento,
+      "Ubicación": r.ubicacion,
       "Disponible": r.total,
       "Unidad": r.unidad,
     }));
 
     const hoja = XLSX.utils.json_to_sheet(datos);
-    hoja["!cols"] = [{ wch: 24 }, { wch: 12 }, { wch: 10 }];
+    hoja["!cols"] = [{ wch: 18 }, { wch: 24 }, { wch: 18 }, { wch: 12 }, { wch: 10 }];
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, "Stock disponible");
 
     const hoy = new Date().toISOString().slice(0, 10);
     XLSX.writeFile(libro, `stock-alimentos-${hoy}.xlsx`);
   }
+
+  const stockPorCategoria = new Map<string, FilaStock[]>();
+  for (const fila of stock) {
+    const lista = stockPorCategoria.get(fila.categoria) ?? [];
+    lista.push(fila);
+    stockPorCategoria.set(fila.categoria, lista);
+  }
+  const categoriasOrdenadas = [...stockPorCategoria.entries()].sort(([a], [b]) => {
+    if (a === SIN_CATEGORIA) return 1;
+    if (b === SIN_CATEGORIA) return -1;
+    return a.localeCompare(b);
+  });
 
   const botonActualizar = (
     <button
@@ -207,16 +250,28 @@ export default function StockDisponibleAlimentos({
       ) : stock.length === 0 ? (
         <p className="text-sm text-stone-400">Todavía no hay movimientos cargados.</p>
       ) : (
-        <ul className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-          {stock.map((r) => (
-            <li key={`${r.alimento}|${r.unidad}`} className="flex items-baseline justify-between gap-3 border-b border-stone-100 py-1.5 text-sm">
-              <span className="text-stone-600">{r.alimento}</span>
-              <span className="shrink-0 font-semibold text-stone-900">
-                {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
-              </span>
-            </li>
+        <div className="space-y-4">
+          {categoriasOrdenadas.map(([categoria, filas]) => (
+            <div key={categoria}>
+              <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-400">{categoria}</h3>
+              <ul className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+                {filas.map((r) => (
+                  <li
+                    key={`${r.alimento}|${r.ubicacion}|${r.unidad}`}
+                    className="flex items-baseline justify-between gap-3 border-b border-stone-100 py-1.5 text-sm"
+                  >
+                    <span className="text-stone-600">
+                      {r.alimento} <span className="text-stone-400">— {r.ubicacion}</span>
+                    </span>
+                    <span className="shrink-0 font-semibold text-stone-900">
+                      {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
       )}
 
       {agregando && (
@@ -263,6 +318,21 @@ export default function StockDisponibleAlimentos({
                 <option value="">Sin especificar</option>
                 {proveedores.map((p) => (
                   <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-stone-700">Ubicación</label>
+              <select
+                required
+                value={ubicacionId}
+                onChange={(e) => setUbicacionId(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+              >
+                <option value="" disabled>Elegir...</option>
+                {ubicaciones.map((u) => (
+                  <option key={u.id} value={u.id}>{u.nombre}</option>
                 ))}
               </select>
             </div>
