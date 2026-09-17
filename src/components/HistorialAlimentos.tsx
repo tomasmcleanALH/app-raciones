@@ -198,8 +198,10 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
   const totalColumnas = puedeEditar ? 10 : 9;
 
   function detalle(f: FilaHistorial) {
-    const base = f.tipo === "entrada" ? `Proveedor: ${f.proveedor_nombre ?? "—"}` : `Lote: ${f.lote_nombre ?? "—"}`;
-    return `${base} · Ubicación: ${f.ubicacion_nombre ?? "—"}`;
+    if (f.tipo === "entrada") {
+      return `Proveedor: ${f.proveedor_nombre ?? "—"} · Ubicación: ${f.ubicacion_nombre ?? "—"}`;
+    }
+    return `Ubicación: ${f.ubicacion_nombre ?? "—"} · Lote: ${f.lote_nombre ?? "—"}`;
   }
 
   /** El menú "⋮" se posiciona con position:fixed (según el botón que lo abrió)
