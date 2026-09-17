@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
-import type { Alimento, Lote, Profile, ProveedorAlimento, TipoMovimiento, UbicacionAlimento } from "@/lib/types";
+import type { Alimento, BolsonAlimento, Lote, Profile, ProveedorAlimento, TipoMovimiento, UbicacionAlimento } from "@/lib/types";
 
 interface FilaHistorial {
   id: string;
@@ -22,6 +22,8 @@ interface FilaHistorial {
   proveedor_nombre: string | null;
   ubicacion_id: string | null;
   ubicacion_nombre: string | null;
+  bolson_id: string | null;
+  bolson_nombre: string | null;
 }
 
 type Editable =
@@ -32,6 +34,7 @@ type Editable =
       lote_id: string;
       alimento_id: string;
       ubicacion_id: string;
+      bolson_id: string;
       cantidad: string;
       unidad: string;
       observaciones: string;
@@ -43,6 +46,7 @@ type Editable =
       alimento_id: string;
       proveedor_id: string;
       ubicacion_id: string;
+      bolson_id: string;
       cantidad: string;
       unidad: string;
       observaciones: string;
@@ -54,6 +58,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorAlimento[]>([]);
   const [ubicaciones, setUbicaciones] = useState<UbicacionAlimento[]>([]);
+  const [bolsones, setBolsones] = useState<BolsonAlimento[]>([]);
   const [usuarios, setUsuarios] = useState<Profile[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +66,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
   const [filtroAlimento, setFiltroAlimento] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
   const [filtroUbicacion, setFiltroUbicacion] = useState("");
+  const [filtroBolson, setFiltroBolson] = useState("");
   const [filtroUsuario, setFiltroUsuario] = useState("");
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
@@ -82,16 +88,18 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
       supabase.from("lotes").select("*").eq("campo_id", campoId).order("nombre"),
       supabase.from("proveedores_alimentos").select("*").eq("campo_id", campoId).order("nombre"),
       supabase.from("ubicaciones_alimentos").select("*").eq("campo_id", campoId).order("nombre"),
+      supabase.from("bolsones_alimentos").select("*").eq("campo_id", campoId).order("nombre"),
       supabase
         .from("profiles")
         .select("*, usuarios_campos!inner(campo_id), usuarios_modulos!inner(modulo)")
         .eq("usuarios_campos.campo_id", campoId)
         .eq("usuarios_modulos.modulo", "alimentos"),
-    ]).then(([a, l, p, ub, u]) => {
+    ]).then(([a, l, p, ub, b, u]) => {
       setAlimentos((a.data ?? []) as Alimento[]);
       setLotes((l.data ?? []) as Lote[]);
       setProveedores((p.data ?? []) as ProveedorAlimento[]);
       setUbicaciones((ub.data ?? []) as UbicacionAlimento[]);
+      setBolsones((b.data ?? []) as BolsonAlimento[]);
       setUsuarios(((u.data ?? []) as Profile[]).sort((a, b) => a.nombre.localeCompare(b.nombre)));
     });
   }, [campoId]);
@@ -107,11 +115,12 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
       let q = supabase
         .from("entradas_alimentos")
         .select(
-          "id, fecha, cantidad, unidad, observaciones, created_at, alimento_id, proveedor_id, ubicacion_id, alimentos!inner(nombre, campo_id), proveedores_alimentos(nombre), ubicaciones_alimentos(nombre), profiles(nombre)",
+          "id, fecha, cantidad, unidad, observaciones, created_at, alimento_id, proveedor_id, ubicacion_id, bolson_id, alimentos!inner(nombre, campo_id), proveedores_alimentos(nombre), ubicaciones_alimentos(nombre), bolsones_alimentos(nombre), profiles(nombre)",
         )
         .eq("alimentos.campo_id", campoId);
       if (filtroAlimento) q = q.eq("alimento_id", filtroAlimento);
       if (filtroUbicacion) q = q.eq("ubicacion_id", filtroUbicacion);
+      if (filtroBolson) q = q.eq("bolson_id", filtroBolson);
       if (filtroUsuario) q = q.eq("cargado_por", filtroUsuario);
       if (filtroDesde) q = q.gte("fecha", filtroDesde);
       if (filtroHasta) q = q.lte("fecha", filtroHasta);
@@ -140,6 +149,8 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
           proveedor_nombre: e.proveedores_alimentos?.nombre ?? null,
           ubicacion_id: e.ubicacion_id,
           ubicacion_nombre: e.ubicaciones_alimentos?.nombre ?? null,
+          bolson_id: e.bolson_id,
+          bolson_nombre: e.bolsones_alimentos?.nombre ?? null,
         });
       }
     }
@@ -148,11 +159,12 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
       let q = supabase
         .from("entregas")
         .select(
-          "id, fecha_entrega, cantidad, unidad, observaciones, created_at, alimento_id, lote_id, ubicacion_id, lotes!inner(nombre, campo_id), alimentos(nombre), ubicaciones_alimentos(nombre), profiles(nombre)",
+          "id, fecha_entrega, cantidad, unidad, observaciones, created_at, alimento_id, lote_id, ubicacion_id, bolson_id, lotes!inner(nombre, campo_id), alimentos(nombre), ubicaciones_alimentos(nombre), bolsones_alimentos(nombre), profiles(nombre)",
         )
         .eq("lotes.campo_id", campoId);
       if (filtroAlimento) q = q.eq("alimento_id", filtroAlimento);
       if (filtroUbicacion) q = q.eq("ubicacion_id", filtroUbicacion);
+      if (filtroBolson) q = q.eq("bolson_id", filtroBolson);
       if (filtroUsuario) q = q.eq("cargado_por", filtroUsuario);
       if (filtroDesde) q = q.gte("fecha_entrega", filtroDesde);
       if (filtroHasta) q = q.lte("fecha_entrega", filtroHasta);
@@ -181,6 +193,8 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
           proveedor_nombre: null,
           ubicacion_id: s.ubicacion_id,
           ubicacion_nombre: s.ubicaciones_alimentos?.nombre ?? null,
+          bolson_id: s.bolson_id,
+          bolson_nombre: s.bolsones_alimentos?.nombre ?? null,
         });
       }
     }
@@ -189,7 +203,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
     setFilas(resultado);
     setSeleccionados(new Set());
     setCargando(false);
-  }, [campoId, filtroAlimento, filtroTipo, filtroUbicacion, filtroUsuario, filtroDesde, filtroHasta]);
+  }, [campoId, filtroAlimento, filtroTipo, filtroUbicacion, filtroBolson, filtroUsuario, filtroDesde, filtroHasta]);
 
   useEffect(() => {
     cargarMovimientos();
@@ -198,10 +212,11 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
   const totalColumnas = puedeEditar ? 10 : 9;
 
   function detalle(f: FilaHistorial) {
+    const bolson = f.bolson_nombre ? ` · Bolsón: ${f.bolson_nombre}` : "";
     if (f.tipo === "entrada") {
-      return `Proveedor: ${f.proveedor_nombre ?? "—"} · Ubicación: ${f.ubicacion_nombre ?? "—"}`;
+      return `Proveedor: ${f.proveedor_nombre ?? "—"} · Ubicación: ${f.ubicacion_nombre ?? "—"}${bolson}`;
     }
-    return `Ubicación: ${f.ubicacion_nombre ?? "—"} · Lote: ${f.lote_nombre ?? "—"}`;
+    return `Ubicación: ${f.ubicacion_nombre ?? "—"}${bolson} · Lote: ${f.lote_nombre ?? "—"}`;
   }
 
   /** El menú "⋮" se posiciona con position:fixed (según el botón que lo abrió)
@@ -232,6 +247,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
             lote_id: f.lote_id ?? "",
             alimento_id: f.alimento_id,
             ubicacion_id: f.ubicacion_id ?? "",
+            bolson_id: f.bolson_id ?? "",
             cantidad: String(f.cantidad),
             unidad: f.unidad,
             observaciones: f.observaciones ?? "",
@@ -243,6 +259,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
             alimento_id: f.alimento_id,
             proveedor_id: f.proveedor_id ?? "",
             ubicacion_id: f.ubicacion_id ?? "",
+            bolson_id: f.bolson_id ?? "",
             cantidad: String(f.cantidad),
             unidad: f.unidad,
             observaciones: f.observaciones ?? "",
@@ -266,6 +283,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
               lote_id: editando.lote_id,
               alimento_id: editando.alimento_id,
               ubicacion_id: editando.ubicacion_id || null,
+              bolson_id: editando.bolson_id || null,
               cantidad: Number(editando.cantidad),
               unidad: editando.unidad,
               observaciones: editando.observaciones.trim() || null,
@@ -278,6 +296,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
               alimento_id: editando.alimento_id,
               proveedor_id: editando.proveedor_id || null,
               ubicacion_id: editando.ubicacion_id || null,
+              bolson_id: editando.bolson_id || null,
               cantidad: Number(editando.cantidad),
               unidad: editando.unidad,
               observaciones: editando.observaciones.trim() || null,
@@ -331,6 +350,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
       "Proveedor": f.proveedor_nombre ?? "",
       "Lote destino": f.lote_nombre ?? "",
       "Ubicación": f.ubicacion_nombre ?? "",
+      "Bolsón": f.bolson_nombre ?? "",
       "Cantidad": f.cantidad,
       "Unidad": f.unidad,
       "Cargado por": f.cargado_por_nombre,
@@ -340,7 +360,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
 
     const hoja = XLSX.utils.json_to_sheet(datos);
     hoja["!cols"] = [
-      { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 18 }, { wch: 16 }, { wch: 16 },
+      { wch: 13 }, { wch: 20 }, { wch: 10 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 14 },
       { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 30 }, { wch: 18 },
     ];
     const libro = XLSX.utils.book_new();
@@ -351,7 +371,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
   }
 
   const hayFiltrosActivos = !!(
-    filtroAlimento || filtroTipo || filtroUbicacion || filtroUsuario || filtroDesde || filtroHasta
+    filtroAlimento || filtroTipo || filtroUbicacion || filtroBolson || filtroUsuario || filtroDesde || filtroHasta
   );
 
   const controlesFiltro = (
@@ -389,6 +409,17 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
       </select>
 
       <select
+        value={filtroBolson}
+        onChange={(e) => setFiltroBolson(e.target.value)}
+        className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
+      >
+        <option value="">Todos los bolsones</option>
+        {bolsones.map((b) => (
+          <option key={b.id} value={b.id}>{b.nombre}</option>
+        ))}
+      </select>
+
+      <select
         value={filtroUsuario}
         onChange={(e) => setFiltroUsuario(e.target.value)}
         className="rounded-lg border border-stone-300 px-3 py-1.5 text-sm"
@@ -420,6 +451,7 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
             setFiltroAlimento("");
             setFiltroTipo("");
             setFiltroUbicacion("");
+            setFiltroBolson("");
             setFiltroUsuario("");
             setFiltroDesde("");
             setFiltroHasta("");
@@ -835,6 +867,20 @@ export default function HistorialAlimentos({ campoId, puedeEditar = true }: { ca
                 <option value="">Sin especificar</option>
                 {ubicaciones.map((u) => (
                   <option key={u.id} value={u.id}>{u.nombre}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-stone-700">Bolsón</label>
+              <select
+                value={editando.bolson_id}
+                onChange={(e) => setEditando({ ...editando, bolson_id: e.target.value })}
+                className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+              >
+                <option value="">Sin especificar</option>
+                {bolsones.map((b) => (
+                  <option key={b.id} value={b.id}>{b.nombre}</option>
                 ))}
               </select>
             </div>

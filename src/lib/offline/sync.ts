@@ -36,6 +36,7 @@ export async function sincronizarPendientes(): Promise<{ subidas: number; fallid
         cantidad,
         unidad,
         ubicacion_id,
+        bolson_id,
         observaciones,
         cargado_por,
       } = entrega;
@@ -49,6 +50,7 @@ export async function sincronizarPendientes(): Promise<{ subidas: number; fallid
           cantidad,
           unidad,
           ubicacion_id,
+          bolson_id,
           observaciones,
           cargado_por,
         },

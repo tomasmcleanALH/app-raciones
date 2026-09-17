@@ -53,6 +53,15 @@ export interface UbicacionAlimento {
   created_at: string;
 }
 
+/** Bolsón: sub-ubicación opcional dentro de una ubicación (ej. "Bolsón 5" en la ubicación "12"). */
+export interface BolsonAlimento {
+  id: string;
+  campo_id: string;
+  nombre: string;
+  activo: boolean;
+  created_at: string;
+}
+
 export interface Entrega {
   id: string;
   client_id: string;
@@ -62,6 +71,7 @@ export interface Entrega {
   cantidad: number;
   unidad: string;
   ubicacion_id: string | null;
+  bolson_id: string | null;
   observaciones: string | null;
   cargado_por: string;
   created_at: string;
@@ -72,6 +82,7 @@ export interface EntregaConNombres extends Entrega {
   lote_nombre: string;
   alimento_nombre: string;
   ubicacion_nombre: string | null;
+  bolson_nombre: string | null;
   cargado_por_nombre: string;
 }
 
@@ -93,6 +104,7 @@ export interface EntradaAlimento {
   unidad: string;
   proveedor_id: string | null;
   ubicacion_id: string | null;
+  bolson_id: string | null;
   observaciones: string | null;
   cargado_por: string;
   created_at: string;
@@ -102,6 +114,7 @@ export interface EntradaAlimentoConNombres extends EntradaAlimento {
   alimento_nombre: string;
   proveedor_nombre: string | null;
   ubicacion_nombre: string | null;
+  bolson_nombre: string | null;
   cargado_por_nombre: string;
 }
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
-import type { Alimento, ProveedorAlimento, UbicacionAlimento } from "@/lib/types";
+import type { Alimento, BolsonAlimento, ProveedorAlimento, UbicacionAlimento } from "@/lib/types";
 
 const SIN_CATEGORIA = "Sin categoría";
 const SIN_UBICACION = "Sin ubicación";
@@ -12,6 +12,7 @@ interface FilaStock {
   categoria: string;
   alimento: string;
   ubicacion: string;
+  bolson: string | null;
   unidad: string;
   total: number;
 }
@@ -40,10 +41,12 @@ export default function StockDisponibleAlimentos({
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorAlimento[]>([]);
   const [ubicaciones, setUbicaciones] = useState<UbicacionAlimento[]>([]);
+  const [bolsones, setBolsones] = useState<BolsonAlimento[]>([]);
   const [fecha, setFecha] = useState(hoyISO());
   const [alimentoId, setAlimentoId] = useState("");
   const [proveedorId, setProveedorId] = useState("");
   const [ubicacionId, setUbicacionId] = useState("");
+  const [bolsonId, setBolsonId] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState("kg");
   const [observaciones, setObservaciones] = useState("");
@@ -56,20 +59,20 @@ export default function StockDisponibleAlimentos({
     const [{ data: entradas }, { data: entregas }] = await Promise.all([
       supabase
         .from("entradas_alimentos")
-        .select("cantidad, unidad, alimentos!inner(nombre, campo_id, categorias_alimentos(nombre)), ubicaciones_alimentos(nombre)")
+        .select("cantidad, unidad, alimentos!inner(nombre, campo_id, categorias_alimentos(nombre)), ubicaciones_alimentos(nombre), bolsones_alimentos(nombre)")
         .eq("alimentos.campo_id", campoId),
       supabase
         .from("entregas")
-        .select("cantidad, unidad, lotes!inner(campo_id), alimentos(nombre, categorias_alimentos(nombre)), ubicaciones_alimentos(nombre)")
+        .select("cantidad, unidad, lotes!inner(campo_id), alimentos(nombre, categorias_alimentos(nombre)), ubicaciones_alimentos(nombre), bolsones_alimentos(nombre)")
         .eq("lotes.campo_id", campoId),
     ]);
 
     const mapa = new Map<string, FilaStock>();
-    function sumar(categoria: string, alimento: string, ubicacion: string, unidad: string, delta: number) {
-      const clave = `${categoria}|${alimento}|${ubicacion}|${unidad}`;
+    function sumar(categoria: string, alimento: string, ubicacion: string, bolson: string | null, unidad: string, delta: number) {
+      const clave = `${categoria}|${alimento}|${ubicacion}|${bolson ?? ""}|${unidad}`;
       const actual = mapa.get(clave);
       if (actual) actual.total += delta;
-      else mapa.set(clave, { categoria, alimento, ubicacion, unidad, total: delta });
+      else mapa.set(clave, { categoria, alimento, ubicacion, bolson, unidad, total: delta });
     }
 
     for (const e of (entradas ?? []) as any[]) {
@@ -77,6 +80,7 @@ export default function StockDisponibleAlimentos({
         e.alimentos?.categorias_alimentos?.nombre ?? SIN_CATEGORIA,
         e.alimentos?.nombre ?? "—",
         e.ubicaciones_alimentos?.nombre ?? SIN_UBICACION,
+        e.bolsones_alimentos?.nombre ?? null,
         e.unidad,
         Number(e.cantidad),
       );
@@ -86,6 +90,7 @@ export default function StockDisponibleAlimentos({
         s.alimentos?.categorias_alimentos?.nombre ?? SIN_CATEGORIA,
         s.alimentos?.nombre ?? "—",
         s.ubicaciones_alimentos?.nombre ?? SIN_UBICACION,
+        s.bolsones_alimentos?.nombre ?? null,
         s.unidad,
         -Number(s.cantidad),
       );
@@ -95,7 +100,8 @@ export default function StockDisponibleAlimentos({
         (a, b) =>
           a.categoria.localeCompare(b.categoria) ||
           a.alimento.localeCompare(b.alimento) ||
-          a.ubicacion.localeCompare(b.ubicacion),
+          a.ubicacion.localeCompare(b.ubicacion) ||
+          (a.bolson ?? "").localeCompare(b.bolson ?? ""),
       ),
     );
     setCargando(false);
@@ -111,6 +117,7 @@ export default function StockDisponibleAlimentos({
     setAlimentoId("");
     setProveedorId("");
     setUbicacionId("");
+    setBolsonId("");
     setCantidad("");
     setUnidad("kg");
     setObservaciones("");
@@ -121,10 +128,12 @@ export default function StockDisponibleAlimentos({
       supabase.from("alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
       supabase.from("proveedores_alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
       supabase.from("ubicaciones_alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
-    ]).then(([a, p, u]) => {
+      supabase.from("bolsones_alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
+    ]).then(([a, p, u, b]) => {
       setAlimentos((a.data ?? []) as Alimento[]);
       setProveedores((p.data ?? []) as ProveedorAlimento[]);
       setUbicaciones((u.data ?? []) as UbicacionAlimento[]);
+      setBolsones((b.data ?? []) as BolsonAlimento[]);
     });
   }
 
@@ -142,6 +151,7 @@ export default function StockDisponibleAlimentos({
       unidad,
       proveedor_id: proveedorId || null,
       ubicacion_id: ubicacionId,
+      bolson_id: bolsonId || null,
       observaciones: observaciones.trim() || null,
       cargado_por: userId,
     });
@@ -164,12 +174,13 @@ export default function StockDisponibleAlimentos({
       "Categoría": r.categoria,
       "Alimento": r.alimento,
       "Ubicación": r.ubicacion,
+      "Bolsón": r.bolson ?? "—",
       "Disponible": r.total,
       "Unidad": r.unidad,
     }));
 
     const hoja = XLSX.utils.json_to_sheet(datos);
-    hoja["!cols"] = [{ wch: 18 }, { wch: 24 }, { wch: 18 }, { wch: 12 }, { wch: 10 }];
+    hoja["!cols"] = [{ wch: 18 }, { wch: 24 }, { wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 10 }];
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, "Stock disponible");
 
@@ -257,11 +268,15 @@ export default function StockDisponibleAlimentos({
               <ul className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
                 {filas.map((r) => (
                   <li
-                    key={`${r.alimento}|${r.ubicacion}|${r.unidad}`}
+                    key={`${r.alimento}|${r.ubicacion}|${r.bolson}|${r.unidad}`}
                     className="flex items-baseline justify-between gap-3 border-b border-stone-100 py-1.5 text-sm"
                   >
                     <span className="text-stone-600">
-                      {r.alimento} <span className="text-stone-400">— {r.ubicacion}</span>
+                      {r.alimento}{" "}
+                      <span className="text-stone-400">
+                        — {r.ubicacion}
+                        {r.bolson ? ` · Bolsón: ${r.bolson}` : ""}
+                      </span>
                     </span>
                     <span className="shrink-0 font-semibold text-stone-900">
                       {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
@@ -336,6 +351,22 @@ export default function StockDisponibleAlimentos({
                 ))}
               </select>
             </div>
+
+            {bolsones.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-stone-700">Bolsón (opcional)</label>
+                <select
+                  value={bolsonId}
+                  onChange={(e) => setBolsonId(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+                >
+                  <option value="">Sin especificar</option>
+                  {bolsones.map((b) => (
+                    <option key={b.id} value={b.id}>{b.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <div className="flex-1">

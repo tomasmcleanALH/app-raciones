@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { createClient } from "@/lib/supabase/client";
-import { getAlimentosActivos, getLotesActivos, getUbicacionesActivas } from "@/lib/offline/catalogos";
+import { getAlimentosActivos, getBolsonesActivos, getLotesActivos, getUbicacionesActivas } from "@/lib/offline/catalogos";
 import { guardarEntregaPendiente } from "@/lib/offline/db";
 import { notificarCambio, sincronizarPendientes } from "@/lib/offline/sync";
-import type { Alimento, Lote, UbicacionAlimento } from "@/lib/types";
+import type { Alimento, BolsonAlimento, Lote, UbicacionAlimento } from "@/lib/types";
 
 function hoyISO() {
   const d = new Date();
@@ -18,12 +18,14 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [ubicaciones, setUbicaciones] = useState<UbicacionAlimento[]>([]);
+  const [bolsones, setBolsones] = useState<BolsonAlimento[]>([]);
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
 
   const [fecha, setFecha] = useState(hoyISO());
   const [loteId, setLoteId] = useState("");
   const [alimentoId, setAlimentoId] = useState("");
   const [ubicacionId, setUbicacionId] = useState("");
+  const [bolsonId, setBolsonId] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState("kg");
   const [observaciones, setObservaciones] = useState("");
@@ -33,11 +35,12 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
   const [revisando, setRevisando] = useState(false);
 
   useEffect(() => {
-    Promise.all([getLotesActivos(campoId), getAlimentosActivos(campoId), getUbicacionesActivas(campoId)])
-      .then(([l, a, u]) => {
+    Promise.all([getLotesActivos(campoId), getAlimentosActivos(campoId), getUbicacionesActivas(campoId), getBolsonesActivos(campoId)])
+      .then(([l, a, u, b]) => {
         setLotes(l);
         setAlimentos(a);
         setUbicaciones(u);
+        setBolsones(b);
       })
       .catch(() => {
         setMensaje({ tipo: "error", texto: "No se pudieron cargar los lotes/alimentos. Conectate una vez a wifi y volvé a intentar." });
@@ -69,6 +72,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
       cantidad: Number(cantidad),
       unidad,
       ubicacion_id: ubicacionId,
+      bolson_id: bolsonId || null,
       observaciones: observaciones.trim() || null,
       cargado_por: userId,
     };
@@ -118,6 +122,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
     const nombreAlimento = alimentos.find((a) => a.id === alimentoId)?.nombre ?? "—";
     const nombreLote = lotes.find((l) => l.id === loteId)?.nombre ?? "—";
     const nombreUbicacion = ubicaciones.find((u) => u.id === ubicacionId)?.nombre ?? "—";
+    const nombreBolson = bolsones.find((b) => b.id === bolsonId)?.nombre ?? "—";
 
     return (
       <div className="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-stone-200">
@@ -129,6 +134,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
             ["Tipo de alimento", nombreAlimento],
             ["Lote destino", nombreLote],
             ["Ubicación", nombreUbicacion],
+            ...(bolsonId ? [["Bolsón", nombreBolson]] : []),
             ["Cantidad", `${cantidad} ${unidad}`],
             ["Observaciones", observaciones.trim() || "—"],
           ].map(([label, valor]) => (
@@ -232,6 +238,22 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
           ))}
         </select>
       </div>
+
+      {bolsones.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-stone-700">Bolsón (opcional)</label>
+          <select
+            value={bolsonId}
+            onChange={(e) => setBolsonId(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+          >
+            <option value="">Sin especificar</option>
+            {bolsones.map((b) => (
+              <option key={b.id} value={b.id}>{b.nombre}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="flex gap-3">
         <div className="flex-1">

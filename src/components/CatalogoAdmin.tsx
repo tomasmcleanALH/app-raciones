@@ -21,6 +21,7 @@ interface Props {
     | "alimentos"
     | "proveedores_alimentos"
     | "ubicaciones_alimentos"
+    | "bolsones_alimentos"
     | "categorias_alimentos"
     | "materiales"
     | "proveedores"
@@ -41,6 +42,7 @@ const SINGULAR: Record<Props["tabla"], string> = {
   alimentos: "el alimento",
   proveedores_alimentos: "el proveedor",
   ubicaciones_alimentos: "la ubicación",
+  bolsones_alimentos: "el bolsón",
   categorias_alimentos: "la categoría",
   materiales: "el material",
   proveedores: "el proveedor",
@@ -55,6 +57,7 @@ const USO: Record<Props["tabla"], { nueva: string; ninguna: string; alguna: stri
   alimentos: { nueva: "una entrada o entrega nueva", ninguna: "ninguna entrada ni entrega", alguna: "alguna entrada o entrega" },
   proveedores_alimentos: { nueva: "una entrada nueva", ninguna: "ninguna entrada", alguna: "alguna entrada de alimento" },
   ubicaciones_alimentos: { nueva: "una entrada o entrega nueva", ninguna: "ninguna entrada ni entrega", alguna: "alguna entrada o entrega" },
+  bolsones_alimentos: { nueva: "una entrada o entrega nueva", ninguna: "ninguna entrada ni entrega", alguna: "alguna entrada o entrega" },
   categorias_alimentos: { nueva: "un alimento nuevo", ninguna: "ningún alimento", alguna: "algún alimento" },
   materiales: { nueva: "un movimiento nuevo", ninguna: "ningún movimiento", alguna: "algún movimiento de stock" },
   proveedores: { nueva: "un movimiento nuevo", ninguna: "ningún movimiento", alguna: "algún movimiento de stock" },

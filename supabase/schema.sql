@@ -108,6 +108,17 @@ create table if not exists public.ubicaciones_alimentos (
   unique (campo_id, nombre)
 );
 
+-- Bolsones: sub-ubicación opcional dentro de una ubicación
+-- (ej. "Bolsón 5" guardado en la ubicación "12").
+create table if not exists public.bolsones_alimentos (
+  id uuid primary key default gen_random_uuid(),
+  campo_id uuid not null references public.campos (id),
+  nombre text not null,
+  activo boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (campo_id, nombre)
+);
+
 -- ------------------------------------------------------------
 -- Tabla: alimentos (pertenece a un campo)
 -- ------------------------------------------------------------
@@ -136,6 +147,7 @@ create table if not exists public.entregas (
   cantidad numeric(10, 2) not null check (cantidad > 0),
   unidad text not null default 'kg',
   ubicacion_id uuid references public.ubicaciones_alimentos (id),
+  bolson_id uuid references public.bolsones_alimentos (id),
   observaciones text,
   cargado_por uuid not null references public.profiles (id),
   created_at timestamptz not null default now()
@@ -167,6 +179,7 @@ create table if not exists public.entradas_alimentos (
   unidad text not null default 'kg',
   proveedor_id uuid references public.proveedores_alimentos (id),
   ubicacion_id uuid references public.ubicaciones_alimentos (id),
+  bolson_id uuid references public.bolsones_alimentos (id),
   observaciones text,
   cargado_por uuid not null references public.profiles (id),
   created_at timestamptz not null default now()
@@ -369,6 +382,7 @@ alter table public.campo_modulos enable row level security;
 alter table public.lotes enable row level security;
 alter table public.categorias_alimentos enable row level security;
 alter table public.ubicaciones_alimentos enable row level security;
+alter table public.bolsones_alimentos enable row level security;
 alter table public.alimentos enable row level security;
 alter table public.entregas enable row level security;
 alter table public.proveedores_alimentos enable row level security;
@@ -497,6 +511,30 @@ create policy ubicaciones_alimentos_select on public.ubicaciones_alimentos
 
 drop policy if exists ubicaciones_alimentos_modificar on public.ubicaciones_alimentos;
 create policy ubicaciones_alimentos_modificar on public.ubicaciones_alimentos
+  for all to authenticated
+  using (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  )
+  with check (
+    public.es_admin_de_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  );
+
+-- bolsones_alimentos: mismo esquema que ubicaciones_alimentos
+drop policy if exists bolsones_alimentos_select on public.bolsones_alimentos;
+create policy bolsones_alimentos_select on public.bolsones_alimentos
+  for select to authenticated
+  using (
+    public.tiene_acceso_a_campo(campo_id)
+    and public.tiene_acceso_a_modulo('alimentos')
+    and public.campo_tiene_modulo(campo_id, 'alimentos')
+  );
+
+drop policy if exists bolsones_alimentos_modificar on public.bolsones_alimentos;
+create policy bolsones_alimentos_modificar on public.bolsones_alimentos
   for all to authenticated
   using (
     public.es_admin_de_campo(campo_id)

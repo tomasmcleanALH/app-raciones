@@ -9,6 +9,7 @@ const TABS = [
   { tabla: "lotes", titulo: "Lotes" },
   { tabla: "proveedores_alimentos", titulo: "Proveedores" },
   { tabla: "ubicaciones_alimentos", titulo: "Ubicaciones" },
+  { tabla: "bolsones_alimentos", titulo: "Bolsones" },
   { tabla: "categorias_alimentos", titulo: "Categorías" },
 ] as const;
 

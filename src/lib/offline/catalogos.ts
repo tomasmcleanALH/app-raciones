@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import type { Alimento, Contratista, Lote, LoteMaterial, Material, Proveedor, UbicacionAlimento } from "@/lib/types";
+import type { Alimento, BolsonAlimento, Contratista, Lote, LoteMaterial, Material, Proveedor, UbicacionAlimento } from "@/lib/types";
 
 async function conCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
   try {
@@ -55,6 +55,21 @@ export async function getUbicacionesActivas(campoId: string): Promise<UbicacionA
       .order("nombre");
     if (error) throw error;
     return data as UbicacionAlimento[];
+  });
+}
+
+/** Bolsones de alimentos activos del campo (sub-ubicación opcional). Si no hay señal, devuelve la última lista vista. */
+export async function getBolsonesActivos(campoId: string): Promise<BolsonAlimento[]> {
+  return conCache(`app-raciones:cache:bolsones_alimentos:${campoId}`, async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("bolsones_alimentos")
+      .select("*")
+      .eq("campo_id", campoId)
+      .eq("activo", true)
+      .order("nombre");
+    if (error) throw error;
+    return data as BolsonAlimento[];
   });
 }
 

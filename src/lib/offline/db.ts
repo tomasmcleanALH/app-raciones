@@ -8,6 +8,7 @@ export interface EntregaPendiente {
   cantidad: number;
   unidad: string;
   ubicacion_id: string;
+  bolson_id: string | null;
   observaciones: string | null;
   cargado_por: string;
   creada_en: string; // timestamp local, para ordenar
