@@ -186,28 +186,30 @@ export default function CatalogoAdmin({ tabla, titulo, campoId, soloLectura = fa
       <h1 className="mb-4 text-xl font-bold text-stone-900">{titulo}</h1>
 
       {!soloLectura && (
-        <form onSubmit={agregar} className="mb-4 flex flex-wrap gap-2">
+        <form onSubmit={agregar} className="mb-4 space-y-2">
           <input
             value={nombreNuevo}
             onChange={(e) => setNombreNuevo(e.target.value)}
             placeholder="Nombre nuevo..."
-            className="min-w-0 flex-1 rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+            className="w-full rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
           />
-          {categorias && (
-            <select
-              value={categoriaNueva}
-              onChange={(e) => setCategoriaNueva(e.target.value)}
-              className="rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
-            >
-              <option value="">Sin categoría</option>
-              {categorias.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
-          )}
-          <button type="submit" className="rounded-lg bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-800">
-            Agregar
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {categorias && (
+              <select
+                value={categoriaNueva}
+                onChange={(e) => setCategoriaNueva(e.target.value)}
+                className="min-w-0 flex-1 rounded-lg border border-stone-300 px-3 py-2 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+              >
+                <option value="">Sin categoría</option>
+                {categorias.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+            )}
+            <button type="submit" className="rounded-lg bg-brand-700 px-4 py-2 font-medium text-white hover:bg-brand-800">
+              Agregar
+            </button>
+          </div>
         </form>
       )}
 
