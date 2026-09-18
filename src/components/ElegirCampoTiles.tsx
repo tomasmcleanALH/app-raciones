@@ -15,9 +15,9 @@ export default function ElegirCampoTiles({ campos, veTodo }: { campos: Campo[]; 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ campoId }),
     });
-    // Los roles de gestión siguen la cadena Campo → Sección → Módulo; el
-    // resto va directo a donde le corresponda (elegir-modulo lo resuelve).
-    router.push(veTodo ? "/elegir-seccion" : "/");
+    // Los roles de gestión van directo a elegir módulo; el
+    // resto va a donde le corresponda (elegir-modulo lo resuelve).
+    router.push(veTodo ? "/elegir-modulo" : "/");
     router.refresh();
   }
 
