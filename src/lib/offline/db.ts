@@ -7,7 +7,7 @@ export interface EntregaPendiente {
   alimento_id: string;
   cantidad: number;
   unidad: string;
-  ubicacion_id: string;
+  ubicacion_id: string | null;
   bolson_id: string | null;
   observaciones: string | null;
   cargado_por: string;

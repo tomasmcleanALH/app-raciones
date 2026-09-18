@@ -17,6 +17,12 @@ interface FilaStock {
   total: number;
 }
 
+/** Rollos e insumos se controlan por total (sin ubicación ni bolsón);
+ * el resto (ej. maíz picado) se sigue desglosando por dónde está. */
+function esCategoriaTotal(categoria: string | null | undefined) {
+  return !!categoria && /rollo|insumo/i.test(categoria);
+}
+
 function hoyISO() {
   const d = new Date();
   const offset = d.getTimezoneOffset();
@@ -38,7 +44,7 @@ export default function StockDisponibleAlimentos({
   const [cargando, setCargando] = useState(true);
 
   const [agregando, setAgregando] = useState(false);
-  const [alimentos, setAlimentos] = useState<Alimento[]>([]);
+  const [alimentos, setAlimentos] = useState<(Alimento & { categorias_alimentos: { nombre: string } | null })[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorAlimento[]>([]);
   const [ubicaciones, setUbicaciones] = useState<UbicacionAlimento[]>([]);
   const [bolsones, setBolsones] = useState<BolsonAlimento[]>([]);
@@ -69,6 +75,10 @@ export default function StockDisponibleAlimentos({
 
     const mapa = new Map<string, FilaStock>();
     function sumar(categoria: string, alimento: string, ubicacion: string, bolson: string | null, unidad: string, delta: number) {
+      if (esCategoriaTotal(categoria)) {
+        ubicacion = "";
+        bolson = null;
+      }
       const clave = `${categoria}|${alimento}|${ubicacion}|${bolson ?? ""}|${unidad}`;
       const actual = mapa.get(clave);
       if (actual) actual.total += delta;
@@ -125,21 +135,23 @@ export default function StockDisponibleAlimentos({
 
     const supabase = createClient();
     Promise.all([
-      supabase.from("alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
+      supabase.from("alimentos").select("*, categorias_alimentos(nombre)").eq("campo_id", campoId).eq("activo", true).order("nombre"),
       supabase.from("proveedores_alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
       supabase.from("ubicaciones_alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
       supabase.from("bolsones_alimentos").select("*").eq("campo_id", campoId).eq("activo", true).order("nombre"),
     ]).then(([a, p, u, b]) => {
-      setAlimentos((a.data ?? []) as Alimento[]);
+      setAlimentos((a.data ?? []) as typeof alimentos);
       setProveedores((p.data ?? []) as ProveedorAlimento[]);
       setUbicaciones((u.data ?? []) as UbicacionAlimento[]);
       setBolsones((b.data ?? []) as BolsonAlimento[]);
     });
   }
 
+  const porTotal = esCategoriaTotal(alimentos.find((a) => a.id === alimentoId)?.categorias_alimentos?.nombre);
+
   async function guardarEntrada(e: React.FormEvent) {
     e.preventDefault();
-    if (!alimentoId || !cantidad || !ubicacionId) return;
+    if (!alimentoId || !cantidad || (!porTotal && !ubicacionId)) return;
     setEnviando(true);
     setErrorAgregar(null);
 
@@ -150,8 +162,8 @@ export default function StockDisponibleAlimentos({
       cantidad: Number(cantidad),
       unidad,
       proveedor_id: proveedorId || null,
-      ubicacion_id: ubicacionId,
-      bolson_id: bolsonId || null,
+      ubicacion_id: porTotal ? null : ubicacionId,
+      bolson_id: porTotal ? null : bolsonId || null,
       observaciones: observaciones.trim() || null,
       cargado_por: userId,
     });
@@ -173,7 +185,7 @@ export default function StockDisponibleAlimentos({
     const datos = stock.map((r) => ({
       "Categoría": r.categoria,
       "Alimento": r.alimento,
-      "Ubicación": r.ubicacion,
+      "Ubicación": r.ubicacion || "—",
       "Bolsón": r.bolson ?? "—",
       "Disponible": r.total,
       "Unidad": r.unidad,
@@ -272,11 +284,13 @@ export default function StockDisponibleAlimentos({
                     className="flex items-baseline justify-between gap-3 border-b border-stone-100 py-1.5 text-sm"
                   >
                     <span className="text-stone-600">
-                      {r.alimento}{" "}
-                      <span className="text-stone-400">
-                        — {r.ubicacion}
-                        {r.bolson ? ` · Bolsón: ${r.bolson}` : ""}
-                      </span>
+                      {r.alimento}
+                      {r.ubicacion && (
+                        <span className="text-stone-400">
+                          {" "}— {r.ubicacion}
+                          {r.bolson ? ` · Bolsón: ${r.bolson}` : ""}
+                        </span>
+                      )}
                     </span>
                     <span className="shrink-0 font-semibold text-stone-900">
                       {r.total.toLocaleString("es-AR", { maximumFractionDigits: 2 })} {r.unidad}
@@ -337,6 +351,7 @@ export default function StockDisponibleAlimentos({
               </select>
             </div>
 
+            {!porTotal && (
             <div>
               <label className="block text-sm font-medium text-stone-700">Ubicación</label>
               <select
@@ -351,8 +366,9 @@ export default function StockDisponibleAlimentos({
                 ))}
               </select>
             </div>
+            )}
 
-            {bolsones.length > 0 && (
+            {!porTotal && bolsones.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-stone-700">Bolsón (opcional)</label>
                 <select
