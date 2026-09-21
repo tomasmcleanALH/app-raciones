@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const RUTAS_PUBLICAS = ["/login", "/manifest.json", "/sw.js"];
+// /api/v1 no usa sesión de usuario: se autentica sola con una clave (ver lib/api-v1/http.ts).
+const RUTAS_PUBLICAS = ["/login", "/manifest.json", "/sw.js", "/api/v1"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
