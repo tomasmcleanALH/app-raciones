@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Modulo } from "@/lib/types";
 
@@ -21,7 +20,6 @@ export default function ElegirModuloTiles({
   /** Sólo tiene sentido volver a elegir campo si pertenece a más de uno. */
   mostrarVolver: boolean;
 }) {
-  const router = useRouter();
   const [eligiendo, setEligiendo] = useState<Modulo | null>(null);
 
   const destino: Record<Modulo, string> = {
@@ -39,18 +37,19 @@ export default function ElegirModuloTiles({
         body: JSON.stringify({ modulo: m }),
       });
       if (!r.ok) throw new Error("No se pudo guardar el módulo elegido.");
-      router.push(destino[m]);
-      router.refresh();
     } catch {
       // Sin señal: no hay forma de pedirle al servidor que guarde la
       // elección, así que la guardamos igual desde acá (ver por qué es
-      // seguro en /api/modulo-actual) y navegamos "duro" en vez de con el
-      // router de Next, para que el celular sirva la página ya guardada
-      // de la última vez que hubo señal, en lugar de quedarse esperando
-      // una respuesta que nunca va a llegar.
+      // seguro en /api/modulo-actual).
       document.cookie = `modulo_actual=${m}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
-      window.location.href = destino[m];
     }
+
+    // Navegación "dura" siempre, en vez de con el router de Next: así el
+    // destino queda guardado como página completa la próxima vez que haya
+    // señal, y si no la hay, el celular tiene esa copia para servir en
+    // lugar de una a medio hacer (o de otra página cualquiera guardada
+    // con otro nombre).
+    window.location.href = destino[m];
   }
 
   return (

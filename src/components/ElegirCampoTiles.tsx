@@ -1,11 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { Campo } from "@/lib/types";
 
 export default function ElegirCampoTiles({ campos, veTodo }: { campos: Campo[]; veTodo: boolean }) {
-  const router = useRouter();
   const [eligiendo, setEligiendo] = useState<string | null>(null);
 
   async function elegir(campoId: string) {
@@ -21,18 +19,19 @@ export default function ElegirCampoTiles({ campos, veTodo }: { campos: Campo[]; 
         body: JSON.stringify({ campoId }),
       });
       if (!r.ok) throw new Error("No se pudo guardar el campo elegido.");
-      router.push(destino);
-      router.refresh();
     } catch {
       // Sin señal: no hay forma de pedirle al servidor que guarde la
       // elección, así que la guardamos igual desde acá (ver por qué es
-      // seguro en /api/campo-actual) y navegamos "duro" en vez de con el
-      // router de Next, para que el celular sirva la página ya guardada
-      // de la última vez que hubo señal, en lugar de quedarse esperando
-      // una respuesta que nunca va a llegar.
+      // seguro en /api/campo-actual).
       document.cookie = `campo_actual=${campoId}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
-      window.location.href = destino;
     }
+
+    // Navegación "dura" siempre, en vez de con el router de Next: así el
+    // destino queda guardado como página completa la próxima vez que haya
+    // señal, y si no la hay, el celular tiene esa copia para servir en
+    // lugar de una a medio hacer (o de otra página cualquiera guardada
+    // con otro nombre).
+    window.location.href = destino;
   }
 
   return (
