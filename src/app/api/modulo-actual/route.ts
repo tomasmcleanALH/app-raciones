@@ -19,9 +19,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Módulo inválido" }, { status: 400 });
   }
 
+  // httpOnly: false a propósito, igual que en /api/campo-actual: es sólo
+  // una preferencia de UI que obtenerModuloActual() siempre revalida contra
+  // los módulos reales del usuario, así que ElegirModuloTiles puede
+  // guardarla igual desde el navegador si no hay señal para llegar acá.
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_MODULO_ACTUAL, modulo, {
-    httpOnly: true,
+    httpOnly: false,
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 365,

@@ -34,9 +34,15 @@ export async function POST(request: Request) {
     }
   }
 
+  // httpOnly: false a propósito. Esta cookie es sólo una preferencia de UI
+  // (qué campo mostrar primero): obtenerCampoActual() siempre revalida que
+  // el usuario realmente pertenezca a ese campo antes de usarla, así que
+  // no hace falta protegerla de JS. Dejarla legible/escribible desde el
+  // navegador permite que ElegirCampoTiles la guarde igual si no hay señal
+  // para llegar hasta acá (ver esa función).
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_CAMPO_ACTUAL, campoId, {
-    httpOnly: true,
+    httpOnly: false,
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 365,

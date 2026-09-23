@@ -10,15 +10,29 @@ export default function ElegirCampoTiles({ campos, veTodo }: { campos: Campo[]; 
 
   async function elegir(campoId: string) {
     setEligiendo(campoId);
-    await fetch("/api/campo-actual", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ campoId }),
-    });
     // Los roles de gestión van directo a elegir módulo; el
     // resto va a donde le corresponda (elegir-modulo lo resuelve).
-    router.push(veTodo ? "/elegir-modulo" : "/");
-    router.refresh();
+    const destino = veTodo ? "/elegir-modulo" : "/";
+
+    try {
+      const r = await fetch("/api/campo-actual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campoId }),
+      });
+      if (!r.ok) throw new Error("No se pudo guardar el campo elegido.");
+      router.push(destino);
+      router.refresh();
+    } catch {
+      // Sin señal: no hay forma de pedirle al servidor que guarde la
+      // elección, así que la guardamos igual desde acá (ver por qué es
+      // seguro en /api/campo-actual) y navegamos "duro" en vez de con el
+      // router de Next, para que el celular sirva la página ya guardada
+      // de la última vez que hubo señal, en lugar de quedarse esperando
+      // una respuesta que nunca va a llegar.
+      document.cookie = `campo_actual=${campoId}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+      window.location.href = destino;
+    }
   }
 
   return (

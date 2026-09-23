@@ -31,13 +31,26 @@ export default function ElegirModuloTiles({
 
   async function elegir(m: Modulo) {
     setEligiendo(m);
-    await fetch("/api/modulo-actual", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ modulo: m }),
-    });
-    router.push(destino[m]);
-    router.refresh();
+
+    try {
+      const r = await fetch("/api/modulo-actual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modulo: m }),
+      });
+      if (!r.ok) throw new Error("No se pudo guardar el módulo elegido.");
+      router.push(destino[m]);
+      router.refresh();
+    } catch {
+      // Sin señal: no hay forma de pedirle al servidor que guarde la
+      // elección, así que la guardamos igual desde acá (ver por qué es
+      // seguro en /api/modulo-actual) y navegamos "duro" en vez de con el
+      // router de Next, para que el celular sirva la página ya guardada
+      // de la última vez que hubo señal, en lugar de quedarse esperando
+      // una respuesta que nunca va a llegar.
+      document.cookie = `modulo_actual=${m}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+      window.location.href = destino[m];
+    }
   }
 
   return (
