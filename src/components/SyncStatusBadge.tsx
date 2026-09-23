@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { contarPendientes } from "@/lib/offline/db";
 import { escucharCambiosDeSync, sincronizarPendientes } from "@/lib/offline/sync";
 
-/** Chip que muestra si hay entregas guardadas en el celular esperando subir. */
+/** Chip que muestra si hay entregas o movimientos de stock guardados en el celular esperando subir. */
 export default function SyncStatusBadge() {
   const [pendientes, setPendientes] = useState<number | null>(null);
   const [online, setOnline] = useState(true);
@@ -47,7 +47,7 @@ export default function SyncStatusBadge() {
         className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-800"
       >
         <span className="h-2 w-2 animate-pulse rounded-full bg-sky-500" />
-        Subiendo {pendientes} entrega{pendientes === 1 ? "" : "s"}...
+        Subiendo {pendientes} registro{pendientes === 1 ? "" : "s"}...
       </button>
     );
   }

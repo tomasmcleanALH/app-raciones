@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
 import BuscarSelect from "./BuscarSelect";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -9,6 +10,8 @@ import {
   getMaterialesActivos,
   getProveedoresActivos,
 } from "@/lib/offline/catalogos";
+import { guardarMovimientoPendiente } from "@/lib/offline/db";
+import { notificarCambio, sincronizarPendientes } from "@/lib/offline/sync";
 import type { Contratista, LoteMaterial, Material, Proveedor, TipoMovimiento } from "@/lib/types";
 
 function hoyISO() {
@@ -35,7 +38,7 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
   const [observaciones, setObservaciones] = useState("");
 
   const [enviando, setEnviando] = useState(false);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "offline" | "error"; texto: string } | null>(null);
   const [revisando, setRevisando] = useState(false);
 
   useEffect(() => {
@@ -87,10 +90,9 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
 
   async function confirmarEnvio() {
     setMensaje(null);
-    setEnviando(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.from("movimientos_stock").insert({
+    const movimiento = {
+      client_id: uuidv4(),
       fecha,
       material_id: materialId,
       tipo,
@@ -101,17 +103,34 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
       lote_material_id: tipo === "salida" ? loteMaterialId : null,
       observaciones: observaciones.trim() || null,
       cargado_por: userId,
-    });
+    };
 
-    setEnviando(false);
+    setEnviando(true);
 
-    if (error) {
-      setMensaje({ tipo: "error", texto: error.message });
-      return;
+    const online = typeof navigator === "undefined" || navigator.onLine;
+
+    if (online) {
+      const supabase = createClient();
+      const { error } = await supabase.from("movimientos_stock").insert(movimiento);
+
+      if (!error) {
+        setEnviando(false);
+        setMensaje({ tipo: "ok", texto: tipo === "entrada" ? "Entrada registrada." : "Salida registrada." });
+        limpiarFormulario();
+        notificarCambio();
+        return;
+      }
+      // Si falló por conexión (no por un error de datos), lo guardamos offline igual.
     }
 
-    setMensaje({ tipo: "ok", texto: tipo === "entrada" ? "Entrada registrada." : "Salida registrada." });
+    await guardarMovimientoPendiente({ ...movimiento, creada_en: new Date().toISOString(), intentos: 0 });
+    notificarCambio();
+    setEnviando(false);
+    setMensaje({ tipo: "offline", texto: "Sin señal: el movimiento quedó guardado en el celular y se va a subir solo cuando haya conexión." });
     limpiarFormulario();
+
+    // Por si en realidad sí hay señal y sólo falló este pedido puntual.
+    sincronizarPendientes().then(() => notificarCambio());
   }
 
   if (cargandoCatalogos) {
@@ -187,7 +206,11 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
         {mensaje && (
           <p
             className={`rounded-lg p-3 text-sm ${
-              mensaje.tipo === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"
+              mensaje.tipo === "ok"
+                ? "bg-emerald-50 text-emerald-800"
+                : mensaje.tipo === "offline"
+                  ? "bg-amber-50 text-amber-800"
+                  : "bg-red-50 text-red-700"
             }`}
           >
             {mensaje.texto}
@@ -349,7 +372,11 @@ export default function MovimientoForm({ userId, campoId }: { userId: string; ca
       {mensaje && (
         <p
           className={`rounded-lg p-3 text-sm ${
-            mensaje.tipo === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"
+            mensaje.tipo === "ok"
+              ? "bg-emerald-50 text-emerald-800"
+              : mensaje.tipo === "offline"
+                ? "bg-amber-50 text-amber-800"
+                : "bg-red-50 text-red-700"
           }`}
         >
           {mensaje.texto}

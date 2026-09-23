@@ -26,7 +26,7 @@ export default async function CargarMovimientoPage() {
     <div className="mx-auto max-w-md">
       <h1 className="mb-4 text-xl font-bold text-stone-900">Cargar movimiento de stock</h1>
       <MovimientoForm userId={userId} campoId={campo.id} />
-      <UltimasMovimientos userId={userId} />
+      <UltimasMovimientos userId={userId} campoId={campo.id} />
     </div>
   );
 }

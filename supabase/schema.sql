@@ -249,6 +249,9 @@ create table if not exists public.lotes_materiales (
 -- restando salidas.
 create table if not exists public.movimientos_stock (
   id uuid primary key default gen_random_uuid(),
+  -- Generado en el celular al crear el movimiento (incluso offline).
+  -- Sirve para no duplicar si se reintenta el envío al recuperar señal.
+  client_id uuid,
   fecha date not null,
   material_id uuid not null references public.materiales (id),
   tipo text not null check (tipo in ('entrada', 'salida')),
@@ -268,6 +271,12 @@ create table if not exists public.movimientos_stock (
 );
 
 create index if not exists movimientos_stock_fecha_idx on public.movimientos_stock (fecha desc);
+-- Único común (no parcial): hace falta así para que sirva de arbiter
+-- del "ON CONFLICT" que usa la sincronización offline. Los movimientos
+-- ya cargados antes de tener client_id quedan en null, y Postgres
+-- permite varios null en un índice único sin problema.
+create unique index if not exists movimientos_stock_client_id_key
+  on public.movimientos_stock (client_id);
 create index if not exists movimientos_stock_cargado_por_idx on public.movimientos_stock (cargado_por);
 
 -- ------------------------------------------------------------

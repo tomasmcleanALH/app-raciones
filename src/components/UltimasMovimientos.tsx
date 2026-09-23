@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { listarMovimientosPendientes, type MovimientoPendiente } from "@/lib/offline/db";
+import { escucharCambiosDeSync } from "@/lib/offline/sync";
+import { getMaterialesActivos } from "@/lib/offline/catalogos";
 
 interface Fila {
   id: string;
@@ -10,35 +13,58 @@ interface Fila {
   tipo: "entrada" | "salida";
   cantidad: number;
   unidad: string;
+  estado: "pendiente" | "sincronizado";
 }
 
-/** Muestra las últimas 5 movimientos de stock cargados por este usuario. */
-export default function UltimasMovimientos({ userId }: { userId: string }) {
+/** Muestra al usuario sus últimos movimientos: los pendientes de subir + los últimos confirmados. */
+export default function UltimasMovimientos({ userId, campoId }: { userId: string; campoId: string }) {
   const [filas, setFilas] = useState<Fila[] | null>(null);
 
   const cargar = useCallback(async () => {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("movimientos_stock")
-      .select("id, fecha, tipo, cantidad, unidad, materiales(nombre)")
-      .eq("cargado_por", userId)
-      .order("created_at", { ascending: false })
-      .limit(5);
+    const [materiales, pendientes] = await Promise.all([
+      getMaterialesActivos(campoId).catch(() => []),
+      listarMovimientosPendientes(),
+    ]);
+    const nombreMaterial = (id: string) => materiales.find((m) => m.id === id)?.nombre ?? "—";
 
-    setFilas(
-      (data ?? []).map((m: any) => ({
+    const filasPendientes: Fila[] = (pendientes as MovimientoPendiente[]).map((p) => ({
+      id: p.client_id,
+      fecha: p.fecha,
+      material: nombreMaterial(p.material_id),
+      tipo: p.tipo,
+      cantidad: p.cantidad,
+      unidad: p.unidad,
+      estado: "pendiente",
+    }));
+
+    let filasSincronizadas: Fila[] = [];
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("movimientos_stock")
+        .select("id, fecha, tipo, cantidad, unidad, materiales(nombre)")
+        .eq("cargado_por", userId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      filasSincronizadas = (data ?? []).map((m: any) => ({
         id: m.id,
         fecha: m.fecha,
         material: m.materiales?.nombre ?? "—",
         tipo: m.tipo,
         cantidad: m.cantidad,
         unidad: m.unidad,
-      })),
-    );
-  }, [userId]);
+        estado: "sincronizado",
+      }));
+    }
+
+    setFilas([...filasPendientes, ...filasSincronizadas]);
+  }, [userId, campoId]);
 
   useEffect(() => {
     cargar();
+    const dejar = escucharCambiosDeSync(cargar);
+    return dejar;
   }, [cargar]);
 
   if (!filas || filas.length === 0) return null;
@@ -58,13 +84,20 @@ export default function UltimasMovimientos({ userId }: { userId: string }) {
                 {f.cantidad} {f.unidad} · {f.fecha}
               </span>
             </div>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                f.tipo === "entrada" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-              }`}
-            >
-              {f.tipo === "entrada" ? "Entrada" : "Salida"}
-            </span>
+            <div className="flex items-center gap-2">
+              {f.estado === "pendiente" && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                  sin subir
+                </span>
+              )}
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                  f.tipo === "entrada" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                {f.tipo === "entrada" ? "Entrada" : "Salida"}
+              </span>
+            </div>
           </li>
         ))}
       </ul>
