@@ -11,12 +11,15 @@ export default function Nav({
   nombre,
   rol,
   campos,
+  campoNombre,
   modulos,
   moduloActual,
 }: {
   nombre: string;
   rol: Rol;
   campos: Campo[];
+  /** Campo con el que se está trabajando ahora, para mostrarlo siempre en la barra. */
+  campoNombre: string | null;
   modulos: Modulo[];
   /** Módulo que eligió en la pantalla de tiles: el Nav muestra sólo ése,
    * no todos los que tiene habilitados (antes estaba "Cambiar módulo" para
@@ -74,9 +77,15 @@ export default function Nav({
   const logo = (
     <Link href="/" className="flex items-center gap-2 font-bold text-brand-800">
       <img src="/logo-las-helenas.jpg" alt="" className="h-7 w-7 rounded-md object-cover" />
-      Operaciones
+      <span className={campoNombre ? "hidden sm:inline" : undefined}>Operaciones</span>
     </Link>
   );
+
+  const campoChip = campoNombre ? (
+    <span className="min-w-0 max-w-[9rem] truncate rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-800 sm:max-w-[14rem] sm:text-sm">
+      {campoNombre}
+    </span>
+  ) : null;
 
   // En vez de un selector de campo y un link de "Cambiar módulo" sueltos en
   // la barra, una sola flecha para volver a la pantalla de elegir módulo
@@ -112,6 +121,7 @@ export default function Nav({
         {volver}
 
         <div className="shrink-0">{logo}</div>
+        {campoChip}
 
         {/* Nav horizontal: sólo en pantallas medianas/grandes. Si no entran todos
             los links, se desliza horizontalmente en vez de pasar a otra línea. */}
