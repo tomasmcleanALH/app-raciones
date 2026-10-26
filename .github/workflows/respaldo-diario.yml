@@ -191,7 +191,7 @@ jobs:
           tamano=$(du -h "${NOMBRE}.dump.enc" | cut -f1)
           curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode "text=✅ Respaldo de Operaciones listo (${NOMBRE}). $(cat resumen.txt). Base cifrada: ${tamano}. Subido a Drive." \
+            --data-urlencode "text=✅ COPIA DE SEGURIDAD OPERACIONES: lista (${NOMBRE}). $(cat resumen.txt). Base cifrada: ${tamano}. Subido a Drive." \
             > /dev/null
 
       - name: Avisar por Telegram (falló)
@@ -202,5 +202,5 @@ jobs:
         run: |
           curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode "text=❌ FALLÓ el respaldo de Operaciones. No se subió nada nuevo a Drive. Detalle: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --data-urlencode "text=❌ COPIA DE SEGURIDAD OPERACIONES: FALLÓ. No se subió nada nuevo a Drive. Detalle: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             > /dev/null
