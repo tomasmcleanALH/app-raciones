@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RCLONE_VERSION: "1.68.2"
+  VERSION_DE_RCLONE: "1.68.2"
   DIAS_A_CONSERVAR: "30"
   PRUEBA_DB_URL: postgresql://postgres:prueba@localhost:5432/postgres
 
@@ -70,12 +70,12 @@ jobs:
       - name: Instalar rclone (con verificación de la suma de control)
         run: |
           cd "$RUNNER_TEMP"
-          zip="rclone-v${RCLONE_VERSION}-linux-amd64.zip"
-          curl -fsSLO "https://downloads.rclone.org/v${RCLONE_VERSION}/${zip}"
-          curl -fsSLO "https://downloads.rclone.org/v${RCLONE_VERSION}/SHA256SUMS"
+          zip="rclone-v${VERSION_DE_RCLONE}-linux-amd64.zip"
+          curl -fsSLO "https://downloads.rclone.org/v${VERSION_DE_RCLONE}/${zip}"
+          curl -fsSLO "https://downloads.rclone.org/v${VERSION_DE_RCLONE}/SHA256SUMS"
           grep " ${zip}\$" SHA256SUMS | sha256sum -c -
           unzip -q "$zip"
-          sudo install -m 0755 "rclone-v${RCLONE_VERSION}-linux-amd64/rclone" /usr/local/bin/rclone
+          sudo install -m 0755 "rclone-v${VERSION_DE_RCLONE}-linux-amd64/rclone" /usr/local/bin/rclone
           rclone version
 
       - name: Revisar que estén cargados los secrets
