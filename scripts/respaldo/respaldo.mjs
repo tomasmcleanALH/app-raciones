@@ -25,7 +25,21 @@ async function conectar(url) {
     connectionString: u.toString(),
     ssl: local ? false : { rejectUnauthorized: false },
   });
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (err) {
+    // Pista para armar bien el secret, sin mostrar nada sensible (ni la
+    // contraseña, ni el código del proyecto).
+    const pooler = u.hostname.includes("pooler.supabase.com");
+    const pistas = [
+      `usuario: ${u.username ? u.username.split(".")[0] : "(vacío)"}${u.username.includes(".") ? " + código del proyecto" : " (SIN código del proyecto)"}`,
+      `host de pooler: ${pooler ? "sí" : "NO"}`,
+      `puerto: ${u.port || "(ninguno)"}`,
+      `largo de la contraseña leída: ${decodeURIComponent(u.password).length}`,
+      `contiene corchetes: ${/[\[\]]/.test(decodeURIComponent(u.password)) ? "SÍ (sacarlos)" : "no"}`,
+    ];
+    throw new Error(`${err.message}\n  Lo que se leyó de RESPALDO_DB_URL -> ${pistas.join(" | ")}`);
+  }
   return client;
 }
 
