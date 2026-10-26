@@ -143,7 +143,9 @@ jobs:
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:RESPALDO_CLAVE -in "${NOMBRE}.dump.enc" -out restaurar.dump
 
           # Piezas que en Supabase ya vienen puestas y el dump da por existentes.
+          # (El esquema "public" se borra porque la copia lo vuelve a crear.)
           psql "$PRUEBA_DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          drop schema public cascade;
           create role anon nologin;
           create role authenticated nologin;
           create role service_role nologin bypassrls;
