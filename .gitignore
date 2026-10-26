@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# respaldo diario (herramientas aparte de la app)
+/scripts/respaldo/node_modules

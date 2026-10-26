@@ -1,0 +1,9 @@
+{
+  "name": "respaldo-operaciones",
+  "private": true,
+  "type": "module",
+  "description": "Herramientas del respaldo diario (ver docs/respaldo.md). No forma parte de la app.",
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}

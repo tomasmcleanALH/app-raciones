@@ -1,0 +1,206 @@
+name: Respaldo diario
+
+# Todos los días a las 03:00 (hora de Argentina) saca una copia de la base de
+# Supabase, la cifra, comprueba que se pueda restaurar en una base de prueba y
+# recién entonces la sube a Google Drive y avisa por Telegram.
+# También se puede correr a mano: Actions > Respaldo diario > Run workflow.
+# Detalles y cómo restaurar: docs/respaldo.md
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: respaldo-diario
+  cancel-in-progress: false
+
+env:
+  RCLONE_VERSION: "1.68.2"
+  DIAS_A_CONSERVAR: "30"
+  PRUEBA_DB_URL: postgresql://postgres:prueba@localhost:5432/postgres
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+
+    # Base vacía donde se prueba la restauración.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: prueba
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/respaldo/package-lock.json
+
+      - name: Instalar dependencias del respaldo
+        run: npm ci --prefix scripts/respaldo
+
+      # pg_dump tiene que ser de la misma versión que la base de Supabase, o más nueva.
+      - name: Instalar herramientas de PostgreSQL 17
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Instalar rclone (con verificación de la suma de control)
+        run: |
+          cd "$RUNNER_TEMP"
+          zip="rclone-v${RCLONE_VERSION}-linux-amd64.zip"
+          curl -fsSLO "https://downloads.rclone.org/v${RCLONE_VERSION}/${zip}"
+          curl -fsSLO "https://downloads.rclone.org/v${RCLONE_VERSION}/SHA256SUMS"
+          grep " ${zip}\$" SHA256SUMS | sha256sum -c -
+          unzip -q "$zip"
+          sudo install -m 0755 "rclone-v${RCLONE_VERSION}-linux-amd64/rclone" /usr/local/bin/rclone
+          rclone version
+
+      - name: Revisar que estén cargados los secrets
+        env:
+          RESPALDO_DB_URL: ${{ secrets.RESPALDO_DB_URL }}
+          RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
+          GOOGLE_CARPETA_ID: ${{ secrets.GOOGLE_CARPETA_ID }}
+        run: |
+          faltan=0
+          for v in RESPALDO_DB_URL RESPALDO_CLAVE TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID GOOGLE_TOKEN GOOGLE_CARPETA_ID; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Falta el secret $v (Settings > Secrets and variables > Actions)."
+              faltan=1
+            fi
+          done
+          exit $faltan
+
+      - name: Nombre de los archivos
+        run: echo "NOMBRE=respaldo-operaciones-$(TZ=America/Argentina/Buenos_Aires date +%Y-%m-%d_%H%M)" >> "$GITHUB_ENV"
+
+      - name: Contar filas del origen (antes)
+        env:
+          RESPALDO_DB_URL: ${{ secrets.RESPALDO_DB_URL }}
+        run: node scripts/respaldo/respaldo.mjs contar "$RESPALDO_DB_URL" antes.json
+
+      # Esquemas "public" (los datos de la app) y "auth" (usuarios y claves).
+      # --no-owner / --no-privileges: sin dueños ni permisos propios de Supabase,
+      # así se puede restaurar en cualquier Postgres.
+      - name: Copiar la base (pg_dump)
+        env:
+          RESPALDO_DB_URL: ${{ secrets.RESPALDO_DB_URL }}
+        run: |
+          pg_dump "$RESPALDO_DB_URL" --format=custom --no-owner --no-privileges \
+            --schema=public --schema=auth --file=base.dump
+          ls -lh base.dump
+
+      - name: Contar filas del origen (después)
+        env:
+          RESPALDO_DB_URL: ${{ secrets.RESPALDO_DB_URL }}
+        run: node scripts/respaldo/respaldo.mjs contar "$RESPALDO_DB_URL" despues.json
+
+      - name: Exportar los datos a JSON (copia legible)
+        env:
+          RESPALDO_DB_URL: ${{ secrets.RESPALDO_DB_URL }}
+        run: node scripts/respaldo/respaldo.mjs exportar "$RESPALDO_DB_URL" datos.json
+
+      - name: Cifrar
+        env:
+          RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+        run: |
+          openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass env:RESPALDO_CLAVE -in base.dump  -out "${NOMBRE}.dump.enc"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass env:RESPALDO_CLAVE -in datos.json -out "${NOMBRE}-datos.json.enc"
+          rm base.dump datos.json
+          ls -lh "${NOMBRE}"*
+
+      # Se restaura a partir del archivo CIFRADO, tal como se haría en una
+      # emergencia: así se comprueba también que la clave descifra bien.
+      - name: Probar la restauración en una base vacía
+        env:
+          RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:RESPALDO_CLAVE -in "${NOMBRE}.dump.enc" -out restaurar.dump
+
+          # Piezas que en Supabase ya vienen puestas y el dump da por existentes.
+          psql "$PRUEBA_DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          create role anon nologin;
+          create role authenticated nologin;
+          create role service_role nologin bypassrls;
+          create role authenticator nologin;
+          create role supabase_auth_admin nologin;
+          create schema if not exists extensions;
+          create extension if not exists pgcrypto with schema extensions;
+          create extension if not exists "uuid-ossp" with schema extensions;
+          alter database postgres set search_path = "$user", public, extensions;
+          SQL
+
+          pg_restore --exit-on-error --no-owner --no-privileges --dbname="$PRUEBA_DB_URL" restaurar.dump
+          rm restaurar.dump
+
+          node scripts/respaldo/respaldo.mjs contar "$PRUEBA_DB_URL" restaurado.json
+          node scripts/respaldo/respaldo.mjs comparar antes.json despues.json restaurado.json | tee resumen.txt
+
+      # Sólo se sube lo que ya se comprobó que se puede restaurar.
+      - name: Subir a Google Drive
+        env:
+          RCLONE_CONFIG_DRIVE_TYPE: drive
+          RCLONE_CONFIG_DRIVE_SCOPE: drive
+          RCLONE_CONFIG_DRIVE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
+          RCLONE_CONFIG_DRIVE_ROOT_FOLDER_ID: ${{ secrets.GOOGLE_CARPETA_ID }}
+        run: |
+          rclone copyto "${NOMBRE}.dump.enc" "drive:${NOMBRE}.dump.enc"
+          rclone copyto "${NOMBRE}-datos.json.enc" "drive:${NOMBRE}-datos.json.enc"
+          # Comprobar que quedaron en la carpeta y con el tamaño correcto.
+          for f in "${NOMBRE}.dump.enc" "${NOMBRE}-datos.json.enc"; do
+            local_size=$(stat -c %s "$f")
+            remote_size=$(rclone size "drive:$f" --json | node -p 'JSON.parse(require("fs").readFileSync(0,"utf8")).bytes' 2>/dev/null || echo 0)
+            if [ "$local_size" != "$remote_size" ]; then
+              echo "::error::$f: en Drive pesa $remote_size bytes y debería pesar $local_size."
+              exit 1
+            fi
+          done
+          # Limpieza: sólo copias de este respaldo y sólo las más viejas que DIAS_A_CONSERVAR.
+          rclone delete drive: --include "respaldo-operaciones-*" --min-age "${DIAS_A_CONSERVAR}d" --drive-use-trash=false
+
+      - name: Avisar por Telegram (todo bien)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          tamano=$(du -h "${NOMBRE}.dump.enc" | cut -f1)
+          curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=✅ Respaldo de Operaciones listo (${NOMBRE}). $(cat resumen.txt). Base cifrada: ${tamano}. Subido a Drive." \
+            > /dev/null
+
+      - name: Avisar por Telegram (falló)
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -fsS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=❌ FALLÓ el respaldo de Operaciones. No se subió nada nuevo a Drive. Detalle: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            > /dev/null
