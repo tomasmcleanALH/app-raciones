@@ -65,46 +65,86 @@ export default function StockDisponibleAlimentos({
     const [{ data: entradas }, { data: entregas }] = await Promise.all([
       supabase
         .from("entradas_alimentos")
-        .select("cantidad, unidad, alimentos!inner(nombre, campo_id, categorias_alimentos(nombre)), ubicaciones_alimentos(nombre), bolsones_alimentos(nombre)")
+        .select("cantidad, unidad, fecha, alimentos!inner(nombre, campo_id, categorias_alimentos(nombre)), ubicaciones_alimentos(nombre), bolsones_alimentos(nombre)")
         .eq("alimentos.campo_id", campoId),
       supabase
         .from("entregas")
-        .select("cantidad, unidad, lotes!inner(campo_id), alimentos(nombre, categorias_alimentos(nombre)), ubicaciones_alimentos(nombre), bolsones_alimentos(nombre)")
+        .select("cantidad, unidad, fecha_entrega, lotes!inner(campo_id), alimentos(nombre, categorias_alimentos(nombre)), ubicaciones_alimentos(nombre), bolsones_alimentos(nombre)")
         .eq("lotes.campo_id", campoId),
     ]);
 
-    const mapa = new Map<string, FilaStock>();
-    function sumar(categoria: string, alimento: string, ubicacion: string, bolson: string | null, unidad: string, delta: number) {
-      if (esCategoriaTotal(categoria)) {
-        ubicacion = "";
-        bolson = null;
-      }
+    // Cada fila del stock es lo que ENTRÓ en una ubicación (y bolsón). Las entregas
+    // se descuentan de la ubicación que indican; las que no indican ninguna (las
+    // viejas, de antes de pedirla) se descuentan de lo que haya del alimento,
+    // empezando por lo que entró primero. Así no quedan filas negativas sueltas.
+    const mapa = new Map<string, FilaStock & { primera: string }>();
+    function sumar(categoria: string, alimento: string, ubicacion: string, bolson: string | null, unidad: string, delta: number, fecha: string) {
       const clave = `${categoria}|${alimento}|${ubicacion}|${bolson ?? ""}|${unidad}`;
       const actual = mapa.get(clave);
-      if (actual) actual.total += delta;
-      else mapa.set(clave, { categoria, alimento, ubicacion, bolson, unidad, total: delta });
+      if (actual) {
+        actual.total += delta;
+        if (fecha < actual.primera) actual.primera = fecha;
+      } else {
+        mapa.set(clave, { categoria, alimento, ubicacion, bolson, unidad, total: delta, primera: fecha });
+      }
     }
 
     for (const e of (entradas ?? []) as any[]) {
+      const categoria = e.alimentos?.categorias_alimentos?.nombre ?? SIN_CATEGORIA;
+      const total = esCategoriaTotal(categoria);
       sumar(
-        e.alimentos?.categorias_alimentos?.nombre ?? SIN_CATEGORIA,
+        categoria,
         e.alimentos?.nombre ?? "—",
-        e.ubicaciones_alimentos?.nombre ?? SIN_UBICACION,
-        e.bolsones_alimentos?.nombre ?? null,
+        total ? "" : (e.ubicaciones_alimentos?.nombre ?? SIN_UBICACION),
+        total ? null : (e.bolsones_alimentos?.nombre ?? null),
         e.unidad,
         Number(e.cantidad),
+        e.fecha ?? "",
       );
     }
-    for (const s of (entregas ?? []) as any[]) {
-      sumar(
-        s.alimentos?.categorias_alimentos?.nombre ?? SIN_CATEGORIA,
-        s.alimentos?.nombre ?? "—",
-        s.ubicaciones_alimentos?.nombre ?? SIN_UBICACION,
-        s.bolsones_alimentos?.nombre ?? null,
-        s.unidad,
-        -Number(s.cantidad),
-      );
+
+    const debitos = ((entregas ?? []) as any[])
+      .map((s) => {
+        const categoria = s.alimentos?.categorias_alimentos?.nombre ?? SIN_CATEGORIA;
+        const total = esCategoriaTotal(categoria);
+        return {
+          categoria,
+          alimento: s.alimentos?.nombre ?? "—",
+          ubicacion: total ? "" : ((s.ubicaciones_alimentos?.nombre as string | undefined) ?? null),
+          bolson: total ? null : ((s.bolsones_alimentos?.nombre as string | undefined) ?? null),
+          unidad: s.unidad as string,
+          cantidad: Number(s.cantidad),
+          fecha: (s.fecha_entrega as string) ?? "",
+        };
+      })
+      // Primero las que dicen de dónde salen, después las que no, por fecha.
+      .sort((a, b) => Number(a.ubicacion === null) - Number(b.ubicacion === null) || a.fecha.localeCompare(b.fecha));
+
+    for (const d of debitos) {
+      let restante = d.cantidad;
+      const candidatas = [...mapa.values()]
+        .filter(
+          (f) =>
+            f.categoria === d.categoria &&
+            f.alimento === d.alimento &&
+            f.unidad === d.unidad &&
+            f.total > 0 &&
+            (d.ubicacion === null || f.ubicacion === d.ubicacion) &&
+            (d.bolson === null || f.bolson === d.bolson),
+        )
+        .sort((a, b) => a.primera.localeCompare(b.primera));
+      for (const f of candidatas) {
+        if (restante <= 0) break;
+        const tomado = Math.min(f.total, restante);
+        f.total -= tomado;
+        restante -= tomado;
+      }
+      // Entregó más de lo que había: queda en negativo en su ubicación (es un dato real).
+      if (restante > 0) {
+        sumar(d.categoria, d.alimento, d.ubicacion ?? SIN_UBICACION, d.bolson, d.unidad, -restante, "9999");
+      }
     }
+
     setStock(
       [...mapa.values()].sort(
         (a, b) =>

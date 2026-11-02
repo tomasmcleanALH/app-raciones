@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { createClient } from "@/lib/supabase/client";
-import { getAlimentosActivos, getLotesActivos } from "@/lib/offline/catalogos";
+import { getAlimentosActivos, getLotesActivos, getUbicacionesActivas } from "@/lib/offline/catalogos";
 import { guardarEntregaPendiente } from "@/lib/offline/db";
 import { notificarCambio, sincronizarPendientes } from "@/lib/offline/sync";
-import type { Alimento, Lote } from "@/lib/types";
+import type { Alimento, Lote, UbicacionAlimento } from "@/lib/types";
 
 function hoyISO() {
   const d = new Date();
@@ -17,11 +17,13 @@ function hoyISO() {
 export default function EntregaForm({ userId, campoId }: { userId: string; campoId: string }) {
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
+  const [ubicaciones, setUbicaciones] = useState<UbicacionAlimento[]>([]);
   const [cargandoCatalogos, setCargandoCatalogos] = useState(true);
 
   const [fecha, setFecha] = useState(hoyISO());
   const [loteId, setLoteId] = useState("");
   const [alimentoId, setAlimentoId] = useState("");
+  const [ubicacionElegidaId, setUbicacionElegidaId] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [unidad, setUnidad] = useState("kg");
   const [observaciones, setObservaciones] = useState("");
@@ -31,16 +33,27 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
   const [revisando, setRevisando] = useState(false);
 
   useEffect(() => {
-    Promise.all([getLotesActivos(campoId), getAlimentosActivos(campoId)])
-      .then(([l, a]) => {
+    Promise.all([
+      getLotesActivos(campoId),
+      getAlimentosActivos(campoId),
+      getUbicacionesActivas(campoId).catch(() => [] as UbicacionAlimento[]),
+    ])
+      .then(([l, a, u]) => {
         setLotes(l);
         setAlimentos(a);
+        setUbicaciones(u);
       })
       .catch(() => {
         setMensaje({ tipo: "error", texto: "No se pudieron cargar los lotes/alimentos. Conectate una vez a wifi y volvé a intentar." });
       })
       .finally(() => setCargandoCatalogos(false));
   }, [campoId]);
+
+  // Con una sola ubicación en el campo no se pregunta: se usa esa. Con más de una,
+  // quien carga la entrega elige de dónde sacó el alimento (así el stock por
+  // ubicación descuenta de donde corresponde).
+  const preguntarUbicacion = ubicaciones.length > 1;
+  const ubicacionId = preguntarUbicacion ? ubicacionElegidaId || null : (ubicaciones[0]?.id ?? null);
 
   function limpiarFormulario() {
     setCantidad("");
@@ -51,7 +64,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
   function handlePasarARevision(e: React.FormEvent) {
     e.preventDefault();
     setMensaje(null);
-    if (!loteId || !alimentoId || !cantidad) return;
+    if (!loteId || !alimentoId || !cantidad || (preguntarUbicacion && !ubicacionId)) return;
     setRevisando(true);
   }
 
@@ -65,7 +78,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
       alimento_id: alimentoId,
       cantidad: Number(cantidad),
       unidad,
-      ubicacion_id: null,
+      ubicacion_id: ubicacionId,
       bolson_id: null,
       observaciones: observaciones.trim() || null,
       cargado_por: userId,
@@ -125,6 +138,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
             ["Fecha de entrega", fecha],
             ["Tipo de alimento", nombreAlimento],
             ["Lote destino", nombreLote],
+            ...(preguntarUbicacion ? [["Sale de", ubicaciones.find((u) => u.id === ubicacionId)?.nombre ?? "—"]] : []),
             ["Cantidad", `${cantidad} ${unidad}`],
             ["Observaciones", observaciones.trim() || "—"],
           ].map(([label, valor]) => (
@@ -198,6 +212,23 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
           ))}
         </select>
       </div>
+
+      {preguntarUbicacion && (
+        <div>
+          <label className="block text-sm font-medium text-stone-700">Sale de (ubicación)</label>
+          <select
+            required
+            value={ubicacionElegidaId}
+            onChange={(e) => setUbicacionElegidaId(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2.5 text-base focus:border-brand-600 focus:outline-none focus:ring-1 focus:ring-brand-600"
+          >
+            <option value="" disabled>Elegir...</option>
+            {ubicaciones.map((u) => (
+              <option key={u.id} value={u.id}>{u.nombre}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div>
         <label className="block text-sm font-medium text-stone-700">Lote destino</label>
