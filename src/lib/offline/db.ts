@@ -115,6 +115,42 @@ export async function marcarIntentoMovimientoFallido(clientId: string, error: st
   await db.put("movimientos_pendientes", actual);
 }
 
+export interface CargaPendiente {
+  tipo: "entrega" | "movimiento";
+  client_id: string;
+  fecha: string;
+  resumen: string;
+  creada_en: string;
+  intentos: number;
+  ultimo_error?: string;
+}
+
+/** Todo lo guardado en el celular esperando subir, ordenado por antigüedad. */
+export async function listarCargasPendientes(
+  nombrar: (id: string | null) => string | null,
+): Promise<CargaPendiente[]> {
+  const [entregas, movimientos] = await Promise.all([listarEntregasPendientes(), listarMovimientosPendientes()]);
+  const deEntregas: CargaPendiente[] = entregas.map((e) => ({
+    tipo: "entrega",
+    client_id: e.client_id,
+    fecha: e.fecha_entrega,
+    resumen: `Entrega de ${e.cantidad} ${e.unidad} de ${nombrar(e.alimento_id) ?? "alimento"} a ${nombrar(e.lote_id) ?? "un lote"}`,
+    creada_en: e.creada_en,
+    intentos: e.intentos,
+    ultimo_error: e.ultimo_error,
+  }));
+  const deMovimientos: CargaPendiente[] = movimientos.map((m) => ({
+    tipo: "movimiento",
+    client_id: m.client_id,
+    fecha: m.fecha,
+    resumen: `${m.tipo === "entrada" ? "Entrada" : "Salida"} de ${m.cantidad} ${m.unidad} de ${nombrar(m.material_id) ?? "material"}`,
+    creada_en: m.creada_en,
+    intentos: m.intentos,
+    ultimo_error: m.ultimo_error,
+  }));
+  return [...deEntregas, ...deMovimientos].sort((a, b) => a.creada_en.localeCompare(b.creada_en));
+}
+
 /** Total de registros (entregas + movimientos de stock) esperando subir. */
 export async function contarPendientes(): Promise<number> {
   const db = await getDb();

@@ -1,3 +1,4 @@
+import AvisoDatosAlDia from "@/components/AvisoDatosAlDia";
 import Nav from "@/components/Nav";
 import { requireProfile } from "@/lib/auth";
 import { obtenerCampoActual } from "@/lib/campo";
@@ -19,7 +20,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         modulos={modulos}
         moduloActual={moduloActual}
       />
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
+        <AvisoDatosAlDia generadoEn={Date.now()} />
+        {children}
+      </main>
     </div>
   );
 }

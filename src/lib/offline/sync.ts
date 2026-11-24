@@ -7,6 +7,11 @@ import {
   marcarIntentoFallido,
   marcarIntentoMovimientoFallido,
 } from "./db";
+import { esFallaDeRed } from "./errores";
+import { conTope } from "./tope";
+
+// Con señal mala una carga no se queda esperando: pasado este tiempo se corta y se reintenta después.
+const TOPE_SUBIDA_MS = 15_000;
 
 let sincronizando = false;
 
@@ -28,12 +33,17 @@ async function subirEntregasPendientes(supabase: ReturnType<typeof createClient>
       cargado_por,
     } = entrega;
 
-    const { error } = await supabase.from("entregas").upsert(
-      { client_id, fecha_entrega, lote_id, alimento_id, cantidad, unidad, ubicacion_id, bolson_id, observaciones, cargado_por },
-      { onConflict: "client_id", ignoreDuplicates: true },
-    );
+    const { error } = await conTope(
+      supabase.from("entregas").upsert(
+        { client_id, fecha_entrega, lote_id, alimento_id, cantidad, unidad, ubicacion_id, bolson_id, observaciones, cargado_por },
+        { onConflict: "client_id", ignoreDuplicates: true },
+      ),
+      TOPE_SUBIDA_MS,
+    ).catch((e: Error) => ({ error: e }));
 
     if (error) {
+      // Sin señal no es un rechazo: se corta acá y quedan esperando, sin marcarlas con error.
+      if (esFallaDeRed(error)) break;
       fallidas += 1;
       await marcarIntentoFallido(client_id, error.message);
     } else {
@@ -64,12 +74,17 @@ async function subirMovimientosPendientes(supabase: ReturnType<typeof createClie
       cargado_por,
     } = movimiento;
 
-    const { error } = await supabase.from("movimientos_stock").upsert(
-      { client_id, fecha, material_id, tipo, cantidad, unidad, proveedor_id, contratista_id, lote_material_id, observaciones, cargado_por },
-      { onConflict: "client_id", ignoreDuplicates: true },
-    );
+    const { error } = await conTope(
+      supabase.from("movimientos_stock").upsert(
+        { client_id, fecha, material_id, tipo, cantidad, unidad, proveedor_id, contratista_id, lote_material_id, observaciones, cargado_por },
+        { onConflict: "client_id", ignoreDuplicates: true },
+      ),
+      TOPE_SUBIDA_MS,
+    ).catch((e: Error) => ({ error: e }));
 
     if (error) {
+      // Sin señal no es un rechazo: se corta acá y quedan esperando, sin marcarlas con error.
+      if (esFallaDeRed(error)) break;
       fallidas += 1;
       await marcarIntentoMovimientoFallido(client_id, error.message);
     } else {
