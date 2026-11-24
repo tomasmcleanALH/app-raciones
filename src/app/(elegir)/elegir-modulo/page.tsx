@@ -21,6 +21,7 @@ export default async function ElegirModuloPage() {
   return (
     <ElegirModuloTiles
       modulos={modulos}
+      campoId={campo.id}
       campoNombre={campo.nombre}
       veTodo={veTodo}
       mostrarVolver={campos.length > 1}

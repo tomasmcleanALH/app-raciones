@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { contarPendientes } from "@/lib/offline/db";
+import { escucharPrecarga, faseDePrecarga } from "@/lib/offline/precarga";
 import { escucharCambiosDeSync, sincronizarPendientes } from "@/lib/offline/sync";
 
 /** Chip que muestra si hay entregas o movimientos de stock guardados en el celular esperando subir. */
 export default function SyncStatusBadge() {
   const [pendientes, setPendientes] = useState<number | null>(null);
   const [online, setOnline] = useState(true);
+  const [precarga, setPrecarga] = useState<ReturnType<typeof faseDePrecarga>>(null);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -19,12 +21,16 @@ export default function SyncStatusBadge() {
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     const dejarDeEscuchar = escucharCambiosDeSync(actualizar);
+    const actualizarPrecarga = () => setPrecarga(faseDePrecarga());
+    actualizarPrecarga();
+    const dejarDeEscucharPrecarga = escucharPrecarga(actualizarPrecarga);
     const intervalo = setInterval(actualizar, 5000);
 
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
       dejarDeEscuchar();
+      dejarDeEscucharPrecarga();
       clearInterval(intervalo);
     };
   }, []);
@@ -55,7 +61,11 @@ export default function SyncStatusBadge() {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">
       <span className="h-2 w-2 rounded-full bg-emerald-500" />
-      Todo sincronizado
+      {precarga === "preparando"
+        ? "Preparando para usar sin señal..."
+        : precarga === "lista"
+          ? "Listo para usar sin señal"
+          : "Todo sincronizado"}
     </span>
   );
 }

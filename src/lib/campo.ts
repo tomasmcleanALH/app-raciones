@@ -1,8 +1,20 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import type { Campo, Rol } from "@/lib/types";
 
 export const COOKIE_CAMPO_ACTUAL = "campo_actual";
+
+/**
+ * Encabezado que usa la precarga offline (ver src/lib/offline/precarga.ts) para pedir una
+ * pantalla "como si" se hubiera elegido ese campo, sin cambiar la elección real (cookie).
+ * Sólo sirve para elegir entre los campos del propio usuario, que se revalidan igual.
+ */
+export const HEADER_CAMPO_PRECARGA = "x-campo-precarga";
+
+async function campoPedidoPorPrecarga(lista: Campo[]): Promise<Campo | undefined> {
+  const pedido = (await headers()).get(HEADER_CAMPO_PRECARGA);
+  return pedido ? lista.find((c) => c.id === pedido && c.activo) : undefined;
+}
 
 /**
  * Campo con el que trabaja esta sesión ahora mismo, de la lista de campos
@@ -37,6 +49,9 @@ export async function obtenerCampoActual(
   if (lista.length === 0) return { campo: null, campos: [] };
   if (lista.length === 1) return { campo: lista[0], campos: lista };
 
+  const precarga = await campoPedidoPorPrecarga(lista);
+  if (precarga) return { campo: precarga, campos: lista };
+
   const cookieStore = await cookies();
   const elegidoId = cookieStore.get(COOKIE_CAMPO_ACTUAL)?.value;
   const elegido = lista.find((c) => c.id === elegidoId && c.activo);
@@ -52,6 +67,7 @@ export async function obtenerCampoActual(
  */
 export async function requiereElegirCampo(campos: Campo[]): Promise<boolean> {
   if (campos.length <= 1) return false;
+  if (await campoPedidoPorPrecarga(campos)) return false;
   const cookieStore = await cookies();
   const elegidoId = cookieStore.get(COOKIE_CAMPO_ACTUAL)?.value;
   return !campos.some((c) => c.id === elegidoId && c.activo);

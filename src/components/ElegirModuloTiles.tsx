@@ -2,17 +2,20 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { conTope } from "@/lib/offline/tope";
 import type { Modulo } from "@/lib/types";
 
 const ETIQUETA: Record<Modulo, string> = { alimentos: "Alimentos", materiales: "Materiales" };
 
 export default function ElegirModuloTiles({
   modulos,
+  campoId,
   campoNombre,
   veTodo,
   mostrarVolver,
 }: {
   modulos: Modulo[];
+  campoId: string;
   campoNombre: string;
   /** Los roles de gestión van al Stock de cada módulo; el que sólo carga
    * (entregas o movimientos) va directo a su formulario. */
@@ -31,11 +34,12 @@ export default function ElegirModuloTiles({
     setEligiendo(m);
 
     try {
-      const r = await fetch("/api/modulo-actual", {
+      // Con señal mala no se espera: pasados unos segundos se guarda la elección desde acá.
+      const r = await conTope(fetch("/api/modulo-actual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ modulo: m }),
-      });
+      }), 5_000);
       if (!r.ok) throw new Error("No se pudo guardar el módulo elegido.");
     } catch {
       // Sin señal: no hay forma de pedirle al servidor que guarde la
@@ -49,7 +53,8 @@ export default function ElegirModuloTiles({
     // señal, y si no la hay, el celular tiene esa copia para servir en
     // lugar de una a medio hacer (o de otra página cualquiera guardada
     // con otro nombre).
-    window.location.href = destino[m];
+    // "?c=" para abrir, sin señal, la copia guardada de este campo (ver ElegirCampoTiles).
+    window.location.href = `${destino[m]}?c=${campoId}`;
   }
 
   return (

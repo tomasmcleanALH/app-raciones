@@ -51,9 +51,17 @@ async function pantalla(event) {
   const cache = await caches.open(CACHE_PANTALLAS);
 
   const red = fetch(request).then(async (respuesta) => {
-    // Las redirecciones (p. ej. a /login) no se guardan bajo la dirección pedida.
-    if (respuesta.ok && !respuesta.redirected) {
-      await cache.put(request, respuesta.clone());
+    // Si la dirección redirige (p. ej. "/" lleva al formulario), se guarda una copia limpia de
+    // la pantalla final bajo la dirección pedida: el navegador no acepta copias "redirigidas".
+    // Lo que termina en /login (sin sesión) no se guarda.
+    if (respuesta.ok && !new URL(respuesta.url).pathname.startsWith("/login")) {
+      const aGuardar = respuesta.redirected
+        ? new Response(await respuesta.clone().blob(), {
+            status: 200,
+            headers: { "Content-Type": respuesta.headers.get("Content-Type") || "text/html; charset=utf-8" },
+          })
+        : respuesta.clone();
+      await cache.put(request, aGuardar);
     }
     return respuesta;
   });

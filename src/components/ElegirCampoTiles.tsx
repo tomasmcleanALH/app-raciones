@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { conTope } from "@/lib/offline/tope";
 import type { Campo } from "@/lib/types";
 
 export default function ElegirCampoTiles({ campos, veTodo }: { campos: Campo[]; veTodo: boolean }) {
@@ -10,14 +11,17 @@ export default function ElegirCampoTiles({ campos, veTodo }: { campos: Campo[]; 
     setEligiendo(campoId);
     // Los roles de gestión van directo a elegir módulo; el
     // resto va a donde le corresponda (elegir-modulo lo resuelve).
-    const destino = veTodo ? "/elegir-modulo" : "/";
+    // "?c=" no cambia lo que muestra el servidor: es para que, sin señal, el celular
+    // abra la copia guardada de ESTE campo (se guarda una por campo).
+    const destino = `${veTodo ? "/elegir-modulo" : "/"}?c=${campoId}`;
 
     try {
-      const r = await fetch("/api/campo-actual", {
+      // Con señal mala no se espera: pasados unos segundos se guarda la elección desde acá.
+      const r = await conTope(fetch("/api/campo-actual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ campoId }),
-      });
+      }), 5_000);
       if (!r.ok) throw new Error("No se pudo guardar el campo elegido.");
     } catch {
       // Sin señal: no hay forma de pedirle al servidor que guarde la
