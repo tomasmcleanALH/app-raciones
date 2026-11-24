@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from "uuid";
 import { createClient } from "@/lib/supabase/client";
 import { getAlimentosActivos, getLotesActivos, getUbicacionesActivas } from "@/lib/offline/catalogos";
 import { guardarEntregaPendiente } from "@/lib/offline/db";
+import { conTope } from "@/lib/offline/tope";
 import { notificarCambio, sincronizarPendientes } from "@/lib/offline/sync";
 import type { Alimento, Lote, UbicacionAlimento } from "@/lib/types";
 
@@ -90,7 +91,9 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
 
     if (online) {
       const supabase = createClient();
-      const { error } = await supabase.from("entregas").insert(entrega);
+      // Con señal mala el pedido puede quedar colgado: se espera poco y, si no responde,
+      // se guarda en el celular (si igual llegó, el client_id evita duplicarla al subir).
+      const { error } = await conTope(supabase.from("entregas").insert(entrega)).catch((e: Error) => ({ error: e }));
 
       if (!error) {
         setEnviando(false);
@@ -105,7 +108,7 @@ export default function EntregaForm({ userId, campoId }: { userId: string; campo
     await guardarEntregaPendiente({ ...entrega, creada_en: new Date().toISOString(), intentos: 0 });
     notificarCambio();
     setEnviando(false);
-    setMensaje({ tipo: "offline", texto: "Sin señal: la entrega quedó guardada en el celular y se va a subir sola cuando haya conexión." });
+    setMensaje({ tipo: "offline", texto: "Sin señal (o señal muy mala): la entrega quedó guardada en el celular y se va a subir sola cuando haya conexión." });
     limpiarFormulario();
 
     // Por si en realidad sí hay señal y sólo falló este pedido puntual.

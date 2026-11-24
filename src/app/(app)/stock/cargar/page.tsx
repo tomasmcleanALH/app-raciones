@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import ContextoVigente from "@/components/ContextoVigente";
 import MovimientoForm from "@/components/MovimientoForm";
 import UltimasMovimientos from "@/components/UltimasMovimientos";
 import { requireProfile } from "@/lib/auth";
@@ -25,8 +26,10 @@ export default async function CargarMovimientoPage() {
   return (
     <div className="mx-auto max-w-md">
       <h1 className="mb-4 text-xl font-bold text-stone-900">Cargar movimiento de stock</h1>
-      <MovimientoForm userId={userId} campoId={campo.id} />
-      <UltimasMovimientos userId={userId} campoId={campo.id} />
+      <ContextoVigente userId={userId} campoId={campo.id} generadoEn={Date.now()}>
+        <MovimientoForm userId={userId} campoId={campo.id} />
+        <UltimasMovimientos userId={userId} campoId={campo.id} />
+      </ContextoVigente>
     </div>
   );
 }

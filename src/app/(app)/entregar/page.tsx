@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import ContextoVigente from "@/components/ContextoVigente";
 import EntregaForm from "@/components/EntregaForm";
 import UltimasEntregas from "@/components/UltimasEntregas";
 import { requireProfile } from "@/lib/auth";
@@ -25,8 +26,10 @@ export default async function EntregarPage() {
   return (
     <div className="mx-auto max-w-md">
       <h1 className="mb-4 text-xl font-bold text-stone-900">Cargar entrega</h1>
-      <EntregaForm userId={userId} campoId={campo.id} />
-      <UltimasEntregas userId={userId} campoId={campo.id} />
+      <ContextoVigente userId={userId} campoId={campo.id} generadoEn={Date.now()}>
+        <EntregaForm userId={userId} campoId={campo.id} />
+        <UltimasEntregas userId={userId} campoId={campo.id} />
+      </ContextoVigente>
     </div>
   );
 }

@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/client";
+import { conTope } from "./tope";
 import type { Alimento, BolsonAlimento, Contratista, Lote, LoteMaterial, Material, Proveedor, UbicacionAlimento } from "@/lib/types";
 
 async function conCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
   try {
-    const datos = await fetcher();
+    // Con señal mala no se espera: se usa la última lista guardada.
+    const datos = await conTope(fetcher());
     localStorage.setItem(key, JSON.stringify(datos));
     return datos;
   } catch (err) {
